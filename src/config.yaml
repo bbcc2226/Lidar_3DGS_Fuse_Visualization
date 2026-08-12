@@ -39,13 +39,13 @@
   sift_nfeatures: 0
 
   # Number of layers in each octave.
-  sift_n_octave_layers: 3
+  sift_n_octave_layers: 4
 
   # Larger values keep only stronger features.
-  sift_contrast_threshold: 0.04
+  sift_contrast_threshold: 0.01
 
   # Larger values retain more edge-like features.
-  sift_edge_threshold: 10.0
+  sift_edge_threshold: 15.0
 
   # Gaussian blur sigma at the first octave.
   sift_sigma: 1.6
@@ -69,9 +69,34 @@
   # improve accuracy at the cost of fewer matches. Use -1 to disable.
   sift_max_match_distance: 450
 
+  # If two matched keypoints from the same image land within this many pixels,
+  # treat them as the same tracker node even if they have different keypoint ids.
+  feature_track_merge_radius_px: 2.0
+
   # Match each image with this many subsequent images in timestamp/map order.
   # For example, 3 evaluates (0,1), (0,2), (0,3), then the same window from 1.
   sequential_match_window_size: 5
+
+  # Use prior-pose epipolar + triangulation filtering for landmark generation
+  # instead of sequential RANSAC matching.
+  use_prior_pose_landmark_generation: true
+
+  # Prior-pose landmark generation parameters.
+  prior_epipolar_threshold_px: 2.5
+  prior_min_parallax_deg: 0.5
+  prior_max_reprojection_error_px: 4.0
+  prior_max_camera_pair_gap: 3
+  prior_min_epipolar_matches_per_pair: 40
+  prior_min_usable_matches_per_pair: 30
+  prior_max_matches_per_pair_for_geometry: 700
+
+  # Keep only landmarks with at least this many observations in the generated
+  # landmark set used by BA.
+  prior_min_landmark_observations: 3
+
+  # Tracker-image export filter: only draw landmarks with at least this many
+  # observations.
+  prior_export_min_observations: 4
 
 
   num_iteration: 10

@@ -12,6 +12,7 @@
 #include <map>
 #include <algorithm>
 #include <cmath>
+#include <filesystem>
 
 using namespace std;
 BundleAdjustment::BundleAdjustment(std::string config_path): config_(config_path), data_loader_(config_) {
@@ -38,6 +39,8 @@ Status BundleAdjustment::Run(){
    //Sift
    for(auto& it : camera_map){
        Camera& camera=  it.second;
+       cout << "[BA] extracting SIFT for camera_id=" << camera.camera_id_
+            << " (" << camera.camera_name_ << ")" << endl;
        status = SIFT::extract_sift(camera, config_);
        if(!status.success){
          cout<<status.message<<endl;
@@ -49,8 +52,19 @@ Status BundleAdjustment::Run(){
    std::map<int, Landmark> landmarks;
    status = SIFT::load_landmarks(config_.landmark_cache_path_, landmarks);
    if(!status.success){
-      cout << "[BA] no usable landmark cache, running sequential window matching: " << status.message << endl;
-      status = SIFT::sequential_pair_matching(camera_map, config_, landmarks);
+      if(config_.use_prior_pose_landmark_generation_){
+         cout << "[BA] no usable landmark cache, running prior-pose landmark generation: "
+              << status.message << endl;
+         status = SIFT::prior_pose_landmark_generation(
+            camera_map,
+            cam_intrinsic,
+            config_,
+            landmarks);
+      } else {
+         cout << "[BA] no usable landmark cache, running sequential window matching: "
+              << status.message << endl;
+         status = SIFT::sequential_pair_matching(camera_map, config_, landmarks);
+      }
       if(!status.success){
          cout<<status.message<<endl;
             return status;
@@ -62,7 +76,45 @@ Status BundleAdjustment::Run(){
    } else {
       cout << status.message << endl;
    }
-   status = BaHelper::update_observation_depth(camera_map, landmarks, true);
+
+   const std::filesystem::path tracker_dir =
+      std::filesystem::path(config_.output_path_).parent_path() / "landmark_track_images";
+
+   std::map<int, Landmark> landmarks_for_export;
+   const int export_min_observations = std::max(1, config_.prior_export_min_observations_);
+   for(const auto& it : landmarks){
+      const Landmark& landmark = it.second;
+      if(static_cast<int>(landmark.observations_.size()) >= export_min_observations){
+         landmarks_for_export.emplace(it.first, landmark);
+      }
+   }
+
+   if(landmarks_for_export.empty()){
+      landmarks_for_export = landmarks;
+   }
+
+   status = SIFT::export_landmark_track_images(
+      landmarks_for_export,
+      camera_map,
+      tracker_dir.string());
+   if(!status.success){
+      cout << status.message << endl;
+      return status;
+   }
+   cout << status.message << endl;
+
+   // SIFT descriptors/keypoints are only needed for feature matching, which is
+   // now done; landmark observations already store pixel coordinates. Releasing
+   // them here avoids holding every camera's descriptor matrix in memory for
+   // the whole optimization loop below.
+   for(auto& it : camera_map){
+      Camera& camera = it.second;
+      camera.descriptors_.release();
+      camera.keypoints_.clear();
+      camera.keypoints_.shrink_to_fit();
+   }
+
+   // status = BaHelper::update_observation_depth(camera_map, landmarks, true);
    //initial the world pos
    status = BaHelper::extract_landmark_world_pos(camera_map, cam_intrinsic, config_, landmarks, true);
    if(!status.success){

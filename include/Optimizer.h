@@ -18,11 +18,11 @@ Mat3d K_;
 std::map<int, Vec6d> camera_poses_;
 std::map<int, Vec3d> landmark_positions_;
 // weight for the PosePriorError keeping each pose close to its initial value
-double pose_prior_weight_ = 50.0;
+double pose_prior_weight_ = 40.0;
 // weight for the DepthError anchoring landmark depth to the LiDAR depth map
-double depth_prior_weight_ = 0.5;
+double depth_prior_weight_ = 1;
 // max iterations for each Ceres solve
-int max_num_iterations_ = 50;
+int max_num_iterations_ = 10;
 // final cost of the most recent Optimize() call
 double last_final_cost_ = 0.0;
 

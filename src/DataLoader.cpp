@@ -5,6 +5,7 @@
 
 #include <string>
 #include <fstream>
+#include <iomanip>
 #include <stdexcept>
 #include <nlohmann/json.hpp>
 #include <opencv2/opencv.hpp>
@@ -450,17 +451,30 @@ void DataLoader::camera_lidar_association(){
             [](const auto& lhs, double value){
                 return lhs.first < value;
             });
-        // if the lower bound is the first element, just use it
+        // Camera falls before the first or after the last LiDAR keyframe.
+        // Only use the boundary pose if it is within the allowed time gap.
         if(it == lidar_time_table.begin()){
-            // nothing to do here, handled below
+            double gap = lidar_time_table.front().first - t;
+            if (gap > config_.max_camera_lidar_time_gap_) {
+                std::cerr << "[camera_lidar_association] camera_id=" << camera_id
+                          << " adjusted_ts=" << t
+                          << " is " << gap << " s before LiDAR start — skipping (no valid pose).\n";
+                continue; // matched_lidar_id_ stays -1
+            }
             const auto& lidar = lidar_info_map_.at(it->second);
             camera.matched_lidar_id_ = it->second;
             camera.initial_T_cw_ = extrinsic_.T_camera_lidar * lidar.initial_T_wl_.inverse();
             continue;
         }
-        // if the lower bound is the end, use the last element
-       if (it == lidar_time_table.end()){
+        if (it == lidar_time_table.end()){
             auto last = std::prev(it);
+            double gap = t - last->first;
+            if (gap > config_.max_camera_lidar_time_gap_) {
+                std::cerr << "[camera_lidar_association] camera_id=" << camera_id
+                          << " adjusted_ts=" << t
+                          << " is " << gap << " s after LiDAR end — skipping (no valid pose).\n";
+                continue;
+            }
             const auto& lidar = lidar_info_map_.at(last->second);
             camera.matched_lidar_id_ = last->second;
             camera.initial_T_cw_ = extrinsic_.T_camera_lidar * lidar.initial_T_wl_.inverse();
@@ -494,6 +508,7 @@ void DataLoader::camera_lidar_association(){
         SE3d T_wl_interp(q, translation);
         // Convert LiDAR pose -> Camera pose
         camera.initial_T_cw_ = extrinsic_.T_camera_lidar * T_wl_interp.inverse();
+        std::cout<<std::setprecision(15)<<"matched_lidar_id=" << camera.matched_lidar_id_ << " camera_ts=" << camera.time_stamp_-0.4<< " lidar_ts=" << lidar_info_map_.at(camera.matched_lidar_id_).time_stamp_ << std::endl;
     }
 }
 

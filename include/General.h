@@ -43,14 +43,34 @@ struct Config
     // Absolute cap on descriptor L2 distance for a match, applied alongside
     // the Lowe ratio test. Use -1 to disable (no absolute cap).
     double sift_max_match_distance_ = -1.0;
+    // Merge matched keypoints from the same image into one tracker node when
+    // their pixel locations are within this radius.
+    double feature_track_merge_radius_px_ = 2.0;
     // Match each camera only with this many subsequent cameras in map order.
     int sequential_match_window_size_ = 5;
+
+    // Use prior-pose epipolar + triangulation filtering to build landmarks
+    // instead of RANSAC sequential matching.
+    bool use_prior_pose_landmark_generation_ = true;
+    double prior_epipolar_threshold_px_ = 2.5;
+    double prior_min_parallax_deg_ = 0.5;
+    double prior_max_reprojection_error_px_ = 4.0;
+    int prior_max_camera_pair_gap_ = 3;
+    int prior_min_epipolar_matches_per_pair_ = 40;
+    int prior_min_usable_matches_per_pair_ = 30;
+    int prior_max_matches_per_pair_for_geometry_ = 700;
+    int prior_min_landmark_observations_ = 2;
+    int prior_export_min_observations_ = 4;
 
     int num_iteration_ =20;
 
     // Maximum number of images to load from camera_timestamp_path_.
     // Use -1 (default) to load all images.
     int max_images_ = -1;
+
+    // Camera timestamps more than this many seconds outside the LiDAR
+    // keyframe window are skipped rather than snapped to a wrong boundary pose.
+    double max_camera_lidar_time_gap_ = 0.1;
 
     // Bundle adjustment convergence.
     // Max iterations for each Ceres solve.

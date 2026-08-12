@@ -62,6 +62,22 @@ Config::Config(const std::string& yaml_path)
             }
         };
 
+        auto get_bool = [&](const std::string& key)
+        {
+            try
+            {
+                return config[key].as<bool>();
+            }
+            catch (const YAML::Exception& e)
+            {
+                throw std::runtime_error(
+                    "Failed to load bool field '" +
+                    key +
+                    "': " +
+                    e.what());
+            }
+        };
+
         // Paths
         input_img_dir_ =
             get_string("input_img_dir");
@@ -121,9 +137,54 @@ Config::Config(const std::string& yaml_path)
             sift_max_match_distance_ = get_double("sift_max_match_distance");
         }
 
+        if(config["feature_track_merge_radius_px"]){
+            feature_track_merge_radius_px_ = get_double("feature_track_merge_radius_px");
+        }
+
         if(config["sequential_match_window_size"]){
             sequential_match_window_size_ =
                 get_int("sequential_match_window_size");
+        }
+
+        if(config["use_prior_pose_landmark_generation"]){
+            use_prior_pose_landmark_generation_ =
+                get_bool("use_prior_pose_landmark_generation");
+        }
+        if(config["prior_epipolar_threshold_px"]){
+            prior_epipolar_threshold_px_ =
+                get_double("prior_epipolar_threshold_px");
+        }
+        if(config["prior_min_parallax_deg"]){
+            prior_min_parallax_deg_ =
+                get_double("prior_min_parallax_deg");
+        }
+        if(config["prior_max_reprojection_error_px"]){
+            prior_max_reprojection_error_px_ =
+                get_double("prior_max_reprojection_error_px");
+        }
+        if(config["prior_max_camera_pair_gap"]){
+            prior_max_camera_pair_gap_ =
+                get_int("prior_max_camera_pair_gap");
+        }
+        if(config["prior_min_epipolar_matches_per_pair"]){
+            prior_min_epipolar_matches_per_pair_ =
+                get_int("prior_min_epipolar_matches_per_pair");
+        }
+        if(config["prior_min_usable_matches_per_pair"]){
+            prior_min_usable_matches_per_pair_ =
+                get_int("prior_min_usable_matches_per_pair");
+        }
+        if(config["prior_max_matches_per_pair_for_geometry"]){
+            prior_max_matches_per_pair_for_geometry_ =
+                get_int("prior_max_matches_per_pair_for_geometry");
+        }
+        if(config["prior_min_landmark_observations"]){
+            prior_min_landmark_observations_ =
+                get_int("prior_min_landmark_observations");
+        }
+        if(config["prior_export_min_observations"]){
+            prior_export_min_observations_ =
+                get_int("prior_export_min_observations");
         }
 
         num_iteration_ = get_int("num_iteration");
@@ -141,6 +202,9 @@ Config::Config(const std::string& yaml_path)
         }
         if(config["landmark_reprojection_error_threshold"]){
             landmark_reprojection_error_threshold_ = get_double("landmark_reprojection_error_threshold");
+        }
+        if(config["max_camera_lidar_time_gap"]){
+            max_camera_lidar_time_gap_ = get_double("max_camera_lidar_time_gap");
         }
     }
     catch (const std::exception& e)

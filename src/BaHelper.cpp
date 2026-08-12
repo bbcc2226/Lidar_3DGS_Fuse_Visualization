@@ -262,6 +262,10 @@ Status BaHelper::update_observation_depth(const std::map<int ,Camera>& camera_ma
             continue;
          }
 
+         if(is_initial && ob.depth_ > 0.0){
+            continue;
+         }
+
          const int u = static_cast<int>(std::round(ob.pixel_.x()));
          const int v = static_cast<int>(std::round(ob.pixel_.y()));
          if(u < 0 || u >= cam.depth_map_.cols || v < 0 || v >= cam.depth_map_.rows){

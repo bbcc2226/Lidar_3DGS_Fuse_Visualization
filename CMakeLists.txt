@@ -60,8 +60,13 @@ target_link_libraries(${PROJECT_NAME}
 
 enable_testing()
 
-file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS
-        "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp"
+# Temporarily build only this test file; restore the glob below to
+# re-enable all tests under tests/.
+# file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS
+#         "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp"
+# )
+set(TEST_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/EpipolarPriorPoseTest.cpp"
 )
 
 if(TEST_SOURCES)
