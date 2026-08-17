@@ -6,6 +6,12 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Let CMake run Qt's code generators automatically for QObject subclasses,
+# Designer forms, and resource collections added to any target below.
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTORCC ON)
+
 find_package(OpenCV REQUIRED)
 find_package(Ceres REQUIRED)
 find_package(Eigen3 REQUIRED)
@@ -13,6 +19,7 @@ find_package(GTest REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(TBB REQUIRED)
+find_package(Qt5 5.12 REQUIRED COMPONENTS Core Gui Widgets OpenGL)
 
 file(GLOB_RECURSE PROJECT_SOURCES CONFIGURE_DEPENDS
         "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
@@ -41,6 +48,10 @@ target_link_libraries(${PROJECT_NAME}_lib
         Eigen3::Eigen
         yaml-cpp
         TBB::tbb
+        Qt5::Core
+        Qt5::Gui
+        Qt5::Widgets
+        Qt5::OpenGL
 )
 
 target_compile_definitions(${PROJECT_NAME}_lib
