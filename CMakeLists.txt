@@ -29,6 +29,12 @@ list(REMOVE_ITEM PROJECT_SOURCES
         "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp"
 )
 
+# The desktop application and renderer have their own executable target and
+# must not be folded into the core library by the recursive source glob.
+list(FILTER PROJECT_SOURCES EXCLUDE REGEX
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/(app|renderer|processing)/.*\\.cpp$"
+)
+
 add_library(${PROJECT_NAME}_lib
         ${PROJECT_SOURCES}
 )
@@ -67,6 +73,33 @@ target_link_libraries(${PROJECT_NAME}
         PRIVATE
         ${PROJECT_NAME}_lib
         nlohmann_json::nlohmann_json
+)
+
+# Standalone Qt/OpenGL desktop front end. Application layout code lives in
+# src/app, while OpenGL-specific implementation lives in src/renderer.
+add_executable(${PROJECT_NAME}_qt_viewer
+        src/app/main.cpp
+        src/app/MainWindow.cpp
+        src/app/MainWindow.h
+        src/renderer/OpenGLWidget.cpp
+        src/renderer/OpenGLWidget.h
+        src/processing/3dgsProcessing.cpp
+        src/processing/3dgsProcessing.h
+)
+
+target_include_directories(${PROJECT_NAME}_qt_viewer
+        PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/app
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/processing
+)
+
+target_link_libraries(${PROJECT_NAME}_qt_viewer
+        PRIVATE
+        Qt5::Core
+        Qt5::Gui
+        Qt5::Widgets
+        Qt5::OpenGL
 )
 
 enable_testing()
