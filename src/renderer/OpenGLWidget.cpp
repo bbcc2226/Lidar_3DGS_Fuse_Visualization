@@ -7,6 +7,9 @@
 #include <QWheelEvent>
 
 #include <algorithm>
+#include <cstddef>
+#include <limits>
+#include <type_traits>
 
 OpenGLWidget::OpenGLWidget(QWidget* parent)
     : QOpenGLWidget(parent)
@@ -20,6 +23,18 @@ OpenGLWidget::OpenGLWidget(QWidget* parent)
         update();
     });
     animation_timer_.start();
+}
+
+OpenGLWidget::~OpenGLWidget()
+{
+    // OpenGL resources must be destroyed while this widget's context is
+    // current. Qt may otherwise defer deletion until after the context dies.
+    if (context()) {
+        makeCurrent();
+        point_vbo_.destroy();
+        point_vao_.destroy();
+        doneCurrent();
+    }
 }
 
 void OpenGLWidget::setAnimating(bool enabled)
@@ -40,6 +55,20 @@ void OpenGLWidget::setBackgroundColor(const QColor& color)
     }
 }
 
+void OpenGLWidget::setGaussianPoints(const std::vector<GaussianPoint>& points)
+{
+    pending_points_ = points;
+
+    // Calls made before initializeGL() are retained and uploaded when the
+    // context becomes available.
+    if (isValid()) {
+        makeCurrent();
+        uploadPointBuffer();
+        doneCurrent();
+    }
+    update();
+}
+
 void OpenGLWidget::resetView()
 {
     angle_degrees_ = 0.0;
@@ -51,6 +80,65 @@ void OpenGLWidget::initializeGL()
 {
     initializeOpenGLFunctions();
     glDisable(GL_DEPTH_TEST);
+    createPointBuffers();
+    uploadPointBuffer();
+}
+
+void OpenGLWidget::createPointBuffers()
+{
+    static_assert(std::is_standard_layout<GaussianPoint>::value,
+                  "GaussianPoint must remain usable as an interleaved vertex type.");
+
+    if (!point_vao_.isCreated() && !point_vao_.create()) {
+        qWarning("Failed to create Gaussian point VAO.");
+        return;
+    }
+    if (!point_vbo_.isCreated() && !point_vbo_.create()) {
+        qWarning("Failed to create Gaussian point VBO.");
+        return;
+    }
+
+    QOpenGLVertexArrayObject::Binder vao_binder(&point_vao_);
+    if (!point_vbo_.bind()) {
+        qWarning("Failed to bind Gaussian point VBO.");
+        return;
+    }
+    point_vbo_.setUsagePattern(QOpenGLBuffer::StaticDraw);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(
+        0, 3, GL_FLOAT, GL_FALSE, sizeof(GaussianPoint),
+        reinterpret_cast<const void*>(offsetof(GaussianPoint, x)));
+
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(
+        1, 3, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(GaussianPoint),
+        reinterpret_cast<const void*>(offsetof(GaussianPoint, red)));
+
+    point_vbo_.release();
+}
+
+void OpenGLWidget::uploadPointBuffer()
+{
+    if (!point_vbo_.isCreated()) return;
+
+    const std::size_t byte_count = pending_points_.size() * sizeof(GaussianPoint);
+    if (byte_count > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
+        qWarning("Gaussian point buffer exceeds QOpenGLBuffer's allocation limit.");
+        uploaded_point_count_ = 0;
+        return;
+    }
+
+    if (!point_vbo_.bind()) {
+        qWarning("Failed to bind Gaussian point VBO for upload.");
+        uploaded_point_count_ = 0;
+        return;
+    }
+    point_vbo_.allocate(
+        pending_points_.empty() ? nullptr : pending_points_.data(),
+        static_cast<int>(byte_count));
+    point_vbo_.release();
+    uploaded_point_count_ = pending_points_.size();
 }
 
 void OpenGLWidget::resizeGL(int width, int height)
