@@ -27,11 +27,13 @@ constexpr char kPointVertexShader[] = R"GLSL(
 layout(location = 0) in vec3 in_position;
 layout(location = 1) in vec3 in_color;
 
+uniform mat4 u_mvp;
+
 out vec3 vertex_color;
 
 void main()
 {
-    gl_Position = vec4(in_position, 1.0);
+    gl_Position = u_mvp * vec4(in_position, 1.0);
     gl_PointSize = 3.0;
     vertex_color = in_color;
 }
@@ -118,14 +120,16 @@ void OpenGLWidget::resetView()
 {
     angle_degrees_ = 0.0;
     zoom_ = 1.0;
+    resetCameraMatrices();
     update();
 }
 
 void OpenGLWidget::initializeGL()
 {
     initializeOpenGLFunctions();
-    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_DEPTH_TEST);
     glEnable(GL_PROGRAM_POINT_SIZE);
+    resetCameraMatrices();
 
     if (createPointBuffers()) {
         uploadPointBuffer();
@@ -228,6 +232,14 @@ void OpenGLWidget::destroyPointResources()
     point_vao_.destroy();
 }
 
+void OpenGLWidget::resetCameraMatrices()
+{
+    model_matrix_.setToIdentity();
+
+    view_matrix_.setToIdentity();
+    view_matrix_.lookAt(camera_position_, camera_target_, camera_up_);
+}
+
 void OpenGLWidget::renderGaussianPoints()
 {
     if (uploaded_point_count_ == 0 || !isPointShaderReady() ||
@@ -239,6 +251,10 @@ void OpenGLWidget::renderGaussianPoints()
         qWarning("Failed to bind Gaussian point shader for drawing.");
         return;
     }
+
+    const QMatrix4x4 model_view_projection =
+        projection_matrix_ * view_matrix_ * model_matrix_;
+    point_shader_program_->setUniformValue("u_mvp", model_view_projection);
 
     {
         QOpenGLVertexArrayObject::Binder vao_binder(&point_vao_);
@@ -252,15 +268,24 @@ void OpenGLWidget::renderGaussianPoints()
 void OpenGLWidget::resizeGL(int width, int height)
 {
     glViewport(0, 0, width, height);
+
+    projection_matrix_.setToIdentity();
+    projection_matrix_.perspective(
+        45.0f,
+        static_cast<float>(width) / static_cast<float>(std::max(1, height)),
+        0.01f,
+        1000.0f);
 }
 
 void OpenGLWidget::paintGL()
 {
     glClearColor(background_color_.redF(), background_color_.greenF(),
                  background_color_.blueF(), 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+    glEnable(GL_DEPTH_TEST);
     renderGaussianPoints();
+    glDisable(GL_DEPTH_TEST);
 
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);

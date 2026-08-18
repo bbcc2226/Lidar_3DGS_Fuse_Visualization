@@ -1,12 +1,14 @@
 #pragma once
 
 #include <QColor>
+#include <QMatrix4x4>
 #include <QOpenGLBuffer>
 #include <QOpenGLFunctions>
 #include <QOpenGLVertexArrayObject>
 #include <QOpenGLWidget>
 #include <QPoint>
 #include <QTimer>
+#include <QVector3D>
 
 #include <memory>
 #include <vector>
@@ -49,6 +51,7 @@ private:
     bool createPointShaderProgram();
     bool uploadPointBuffer();
     void destroyPointResources();
+    void resetCameraMatrices();
     void renderGaussianPoints();
     void paintDemoScene(QPainter& painter);
 
@@ -57,6 +60,12 @@ private:
     QOpenGLBuffer point_vbo_{QOpenGLBuffer::VertexBuffer};
     std::unique_ptr<QOpenGLShaderProgram> point_shader_program_;
     std::vector<GaussianPoint> point_data_;
+    QMatrix4x4 model_matrix_;
+    QMatrix4x4 view_matrix_;
+    QMatrix4x4 projection_matrix_;
+    QVector3D camera_position_{0.0f, 0.0f, 3.0f};
+    QVector3D camera_target_{0.0f, 0.0f, 0.0f};
+    QVector3D camera_up_{0.0f, 1.0f, 0.0f};
     QColor background_color_{25, 30, 42};
     QPoint last_mouse_position_;
     double angle_degrees_ = 0.0;
