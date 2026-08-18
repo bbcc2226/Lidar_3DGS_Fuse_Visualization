@@ -2,7 +2,9 @@
 
 #include "OpenGLWidget.h"
 
+#include <QApplication>
 #include <QColorDialog>
+#include <QFileDialog>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -38,6 +40,13 @@ MainWindow::MainWindow(QWidget* parent)
     title->setFont(title_font);
     panel_layout->addWidget(title);
 
+    auto* open_ply_button = new QPushButton("Open PLY...", panel);
+    load_status_label_ = new QLabel("No point cloud loaded", panel);
+    load_status_label_->setWordWrap(true);
+    panel_layout->addWidget(open_ply_button);
+    panel_layout->addWidget(load_status_label_);
+    panel_layout->addSpacing(12);
+
     panel_layout->addWidget(new QLabel("Animation speed", panel));
     auto* speed_slider = new QSlider(Qt::Horizontal, panel);
     speed_slider->setRange(0, 180);
@@ -67,6 +76,8 @@ MainWindow::MainWindow(QWidget* parent)
 
     connect(speed_slider, &QSlider::valueChanged,
             gl_widget_, &OpenGLWidget::setAnimationSpeed);
+    connect(open_ply_button, &QPushButton::clicked,
+            this, &MainWindow::openPlyFile);
     connect(animation_button_, &QPushButton::clicked, this, [this]() {
         gl_widget_->setAnimating(!gl_widget_->isAnimating());
         animation_button_->setText(
@@ -83,4 +94,36 @@ MainWindow::MainWindow(QWidget* parent)
         angle_label_->setText(
             QString("Angle: %1 degrees").arg(gl_widget_->angle(), 0, 'f', 1));
     });
+}
+
+void MainWindow::openPlyFile()
+{
+    const QString path = QFileDialog::getOpenFileName(
+        this,
+        "Open Gaussian or point-cloud PLY",
+        QString(),
+        "PLY files (*.ply);;All files (*)");
+    if (path.isEmpty()) return;
+
+    load_status_label_->setText("Loading " + path + "...");
+    load_status_label_->setToolTip(path);
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    QApplication::processEvents();
+
+    const bool loaded = point_processing_.loadPly(path.toStdString());
+    QApplication::restoreOverrideCursor();
+
+    if (!loaded) {
+        gl_widget_->setGaussianPoints({});
+        load_status_label_->setText(
+            "Load failed: " +
+            QString::fromStdString(point_processing_.lastError()));
+        return;
+    }
+
+    gl_widget_->setGaussianPoints(point_processing_.points());
+    load_status_label_->setText(
+        QString("Loaded %1 points | uploaded %2")
+            .arg(static_cast<qulonglong>(point_processing_.splatCount()))
+            .arg(static_cast<qulonglong>(gl_widget_->uploadedPointCount())));
 }

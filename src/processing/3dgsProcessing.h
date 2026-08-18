@@ -19,7 +19,8 @@ struct GaussianPoint
 class GaussianSplatProcessing
 {
 public:
-    // PLY parsing will be implemented in the next step.
+    // Supports ASCII and binary little-endian PLY vertex data. Direct RGB is
+    // used when present; 3DGS f_dc coefficients are converted to display RGB.
     bool loadPly(const std::string& path);
 
     void clear();

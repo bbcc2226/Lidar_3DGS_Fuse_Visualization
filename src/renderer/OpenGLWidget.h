@@ -8,11 +8,14 @@
 #include <QPoint>
 #include <QTimer>
 
+#include <memory>
 #include <vector>
 
 #include "3dgsProcessing.h"
 
 class QMouseEvent;
+class QOpenGLShaderProgram;
+class QPainter;
 class QWheelEvent;
 
 class OpenGLWidget final : public QOpenGLWidget, protected QOpenGLFunctions
@@ -31,6 +34,7 @@ public:
     void resetView();
 
     std::size_t uploadedPointCount() const { return uploaded_point_count_; }
+    bool isPointShaderReady() const;
 
 protected:
     void initializeGL() override;
@@ -41,13 +45,18 @@ protected:
     void wheelEvent(QWheelEvent* event) override;
 
 private:
-    void createPointBuffers();
-    void uploadPointBuffer();
+    bool createPointBuffers();
+    bool createPointShaderProgram();
+    bool uploadPointBuffer();
+    void destroyPointResources();
+    void renderGaussianPoints();
+    void paintDemoScene(QPainter& painter);
 
     QTimer animation_timer_;
     QOpenGLVertexArrayObject point_vao_;
     QOpenGLBuffer point_vbo_{QOpenGLBuffer::VertexBuffer};
-    std::vector<GaussianPoint> pending_points_;
+    std::unique_ptr<QOpenGLShaderProgram> point_shader_program_;
+    std::vector<GaussianPoint> point_data_;
     QColor background_color_{25, 30, 42};
     QPoint last_mouse_position_;
     double angle_degrees_ = 0.0;
