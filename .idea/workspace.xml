@@ -8,17 +8,18 @@
     <option name="/Default/Housekeeping/GlobalSettingsUpgraded/IsUpgraded/@EntryValue" value="true" type="bool" />
     <option name="/Default/RiderDebugger/RiderRestoreDecompile/RestoreDecompileSetting/@EntryValue" value="false" type="bool" />
   </component>
-  <component name="CMakeProjectFlavorService">
-    <option name="flavorId" value="CMakePlainProjectFlavor" />
-  </component>
   <component name="CMakeSettings">
-    <configurations>
-      <configuration PROFILE_NAME="Debug" ENABLED="true" CONFIG_NAME="Debug" />
-    </configurations>
+    <configurations />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="e1ad35aa-41c1-414f-a185-45a589e3fcf2" name="Changes" comment="configure qt, cmakelist change">
+    <list default="true" id="e1a02559-47c6-4734-9473-6c916dcb5f70" name="Changes" comment="add mvp">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/CMakeLists.txt" beforeDir="false" afterPath="$PROJECT_DIR$/CMakeLists.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/MainWindow.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/MainWindow.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/MainWindow.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/MainWindow.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/renderer/OpenGLWidget.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/renderer/OpenGLWidget.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/renderer/OpenGLWidget.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/renderer/OpenGLWidget.h" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -28,388 +29,91 @@
   <component name="ClangdSettings">
     <option name="formatViaClangd" value="false" />
   </component>
-  <component name="FileTemplateManagerImpl">
-    <option name="RECENT_TEMPLATES">
-      <list>
-        <option value="CMakeLists.txt" />
-      </list>
-    </option>
-  </component>
   <component name="Git.Settings">
-    <option name="RECENT_BRANCH_BY_REPOSITORY">
-      <map>
-        <entry key="$PROJECT_DIR$" value="master" />
-      </map>
-    </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
-    <option name="RESET_MODE" value="HARD" />
   </component>
-  <component name="GitHubPullRequestSearchHistory">{
-  &quot;lastFilter&quot;: {
-    &quot;state&quot;: &quot;OPEN&quot;,
-    &quot;assignee&quot;: &quot;Chuyingbbcc&quot;
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "Chuyingbbcc"
   }
-}</component>
-  <component name="GithubPullRequestsUISettings">{
-  &quot;selectedUrlAndAccountId&quot;: {
-    &quot;url&quot;: &quot;https://github.com/Chuyingbbcc/Lidar_3DGS_Fuse_Visualization.git&quot;,
-    &quot;accountId&quot;: &quot;8c6684ed-2c98-40a4-8be1-f5f07696a534&quot;
+}]]></component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/Chuyingbbcc/Lidar_3DGS_Fuse_Visualization.git",
+    "accountId": "8c6684ed-2c98-40a4-8be1-f5f07696a534"
   }
-}</component>
+}]]></component>
   <component name="HighlightingSettingsPerFile">
-    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/BundleAdjustment.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/renderer/OpenGLWidget.cpp" root0="SKIP_HIGHLIGHTING" />
   </component>
-  <component name="ProjectColorInfo">{
-  &quot;associatedIndex&quot;: 2
-}</component>
-  <component name="ProjectId" id="3HVXlfPWDTqdxRpMQaJWEKwV3UI" />
+  <component name="ProjectColorInfo"><![CDATA[{
+  "customColor": "",
+  "associatedIndex": 2
+}]]></component>
+  <component name="ProjectId" id="3I4B5JNPffuU5vOZ9cVGOJ9JnSE" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.RadMigrateCodeStyle&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.cidr.known.project.marker&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.readMode.enableVisualFormatting&quot;: &quot;true&quot;,
-    &quot;cf.first.check.clang-format&quot;: &quot;false&quot;,
-    &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;vis__branch&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/home/chuchu/Lidar_3DGS_Fuse_Visualization/test_data&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;editor.preferences.inline.completion&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "RunOnceActivity.RadMigrateCodeStyle": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager": "true",
+    "RunOnceActivity.cidr.known.project.marker": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.readMode.enableVisualFormatting": "true",
+    "cf.first.check.clang-format": "false",
+    "cidr.known.project.marker": "true",
+    "git-widget-placeholder": "vis__branch",
+    "last_opened_file_path": "/home/chuchu/Lidar_3DGS_Fuse_Visualization/data",
+    "node.js.detected.package.eslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
-      <recent name="$PROJECT_DIR$/test_data" />
-      <recent name="$PROJECT_DIR$/data/undistorted" />
-      <recent name="$PROJECT_DIR$" />
+      <recent name="$PROJECT_DIR$/data" />
     </key>
   </component>
-  <component name="RunManager" selected="CMake Debug.Unnamed">
-    <configuration name="Unnamed" type="CMakeListConfigurationType" factoryName="CMakeListConfigurationFactory">
-      <method v="2" />
-    </configuration>
-    <configuration name="3dgs" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" WORKING_DIR="file://$PROJECT_DIR$" PASS_PARENT_ENVS_2="true" EXPLICIT_BUILD_TARGET_NAME="all">
-      <method v="2">
-        <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
-      </method>
-    </configuration>
-    <list>
-      <item itemvalue="CMake Application.3dgs" />
-      <item itemvalue="CMake Debug.Unnamed" />
-    </list>
-  </component>
   <component name="TaskManager">
-    <task active="true" id="Default" summary="Default task">
-      <changelist id="e1ad35aa-41c1-414f-a185-45a589e3fcf2" name="Changes" comment="" />
-      <created>1785954361841</created>
-      <option name="number" value="Default" />
-      <option name="presentableId" value="Default" />
-      <updated>1785954361841</updated>
-      <workItem from="1785954363003" duration="3375000" />
-      <workItem from="1785957789365" duration="30307000" />
-      <workItem from="1786124943201" duration="119000" />
-      <workItem from="1786125079245" duration="219000" />
-      <workItem from="1786125383506" duration="40640000" />
-      <workItem from="1786398027176" duration="218000" />
-      <workItem from="1786398269806" duration="159000" />
-      <workItem from="1786398440058" duration="29000" />
-      <workItem from="1786400895846" duration="33179000" />
-      <workItem from="1786492677735" duration="20184000" />
-      <workItem from="1786999612617" duration="1917000" />
-    </task>
-    <task id="LOCAL-00001" summary="skeleton">
+    <task id="LOCAL-00001" summary="1. load 3dgs ply file &#10;2. draw 3dgs 3d points">
       <option name="closed" value="true" />
-      <created>1785980024955</created>
+      <created>1787011843970</created>
       <option name="number" value="00001" />
       <option name="presentableId" value="LOCAL-00001" />
       <option name="project" value="LOCAL" />
-      <updated>1785980024955</updated>
+      <updated>1787011843970</updated>
     </task>
-    <task id="LOCAL-00002" summary="add reading json lib">
+    <task id="LOCAL-00002" summary="add mvp">
       <option name="closed" value="true" />
-      <created>1785993658779</created>
+      <created>1787013142279</created>
       <option name="number" value="00002" />
       <option name="presentableId" value="LOCAL-00002" />
       <option name="project" value="LOCAL" />
-      <updated>1785993658779</updated>
+      <updated>1787013142279</updated>
     </task>
-    <task id="LOCAL-00003" summary="add data loader implementation">
-      <option name="closed" value="true" />
-      <created>1785993718668</created>
-      <option name="number" value="00003" />
-      <option name="presentableId" value="LOCAL-00003" />
-      <option name="project" value="LOCAL" />
-      <updated>1785993718668</updated>
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="e1a02559-47c6-4734-9473-6c916dcb5f70" name="Changes" comment="add mvp" />
+      <created>1787013778334</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1787013778334</updated>
+      <workItem from="1787013781465" duration="3359000" />
     </task>
-    <task id="LOCAL-00004" summary="add SIFT implementation">
-      <option name="closed" value="true" />
-      <created>1786047604358</created>
-      <option name="number" value="00004" />
-      <option name="presentableId" value="LOCAL-00004" />
-      <option name="project" value="LOCAL" />
-      <updated>1786047604358</updated>
-    </task>
-    <task id="LOCAL-00005" summary="correct the vec type error">
-      <option name="closed" value="true" />
-      <created>1786047625138</created>
-      <option name="number" value="00005" />
-      <option name="presentableId" value="LOCAL-00005" />
-      <option name="project" value="LOCAL" />
-      <updated>1786047625138</updated>
-    </task>
-    <task id="LOCAL-00006" summary="modify the mat/vec type">
-      <option name="closed" value="true" />
-      <created>1786049957029</created>
-      <option name="number" value="00006" />
-      <option name="presentableId" value="LOCAL-00006" />
-      <option name="project" value="LOCAL" />
-      <updated>1786049957030</updated>
-    </task>
-    <task id="LOCAL-00007" summary="change gitignore">
-      <option name="closed" value="true" />
-      <created>1786049975204</created>
-      <option name="number" value="00007" />
-      <option name="presentableId" value="LOCAL-00007" />
-      <option name="project" value="LOCAL" />
-      <updated>1786049975204</updated>
-    </task>
-    <task id="LOCAL-00008" summary="//remove unnecessary depth func">
-      <option name="closed" value="true" />
-      <created>1786144075518</created>
-      <option name="number" value="00008" />
-      <option name="presentableId" value="LOCAL-00008" />
-      <option name="project" value="LOCAL" />
-      <updated>1786144075518</updated>
-    </task>
-    <task id="LOCAL-00009" summary="add feature matching/tracking config">
-      <option name="closed" value="true" />
-      <created>1786144427349</created>
-      <option name="number" value="00009" />
-      <option name="presentableId" value="LOCAL-00009" />
-      <option name="project" value="LOCAL" />
-      <updated>1786144427349</updated>
-    </task>
-    <task id="LOCAL-00010" summary="Sift implementation">
-      <option name="closed" value="true" />
-      <created>1786144462771</created>
-      <option name="number" value="00010" />
-      <option name="presentableId" value="LOCAL-00010" />
-      <option name="project" value="LOCAL" />
-      <updated>1786144462771</updated>
-    </task>
-    <task id="LOCAL-00011" summary="correct name">
-      <option name="closed" value="true" />
-      <created>1786144478607</created>
-      <option name="number" value="00011" />
-      <option name="presentableId" value="LOCAL-00011" />
-      <option name="project" value="LOCAL" />
-      <updated>1786144478607</updated>
-    </task>
-    <task id="LOCAL-00012" summary="Add extract landmark global pos function">
-      <option name="closed" value="true" />
-      <created>1786238385463</created>
-      <option name="number" value="00012" />
-      <option name="presentableId" value="LOCAL-00012" />
-      <option name="project" value="LOCAL" />
-      <updated>1786238385463</updated>
-    </task>
-    <task id="LOCAL-00013" summary="change optimization to iterative process">
-      <option name="closed" value="true" />
-      <created>1786238431756</created>
-      <option name="number" value="00013" />
-      <option name="presentableId" value="LOCAL-00013" />
-      <option name="project" value="LOCAL" />
-      <updated>1786238431756</updated>
-    </task>
-    <task id="LOCAL-00014" summary="fix root/proj folder issue, sift test and yaml load">
-      <option name="closed" value="true" />
-      <created>1786238479249</created>
-      <option name="number" value="00014" />
-      <option name="presentableId" value="LOCAL-00014" />
-      <option name="project" value="LOCAL" />
-      <updated>1786238479249</updated>
-    </task>
-    <task id="LOCAL-00015" summary="expose some functions to public">
-      <option name="closed" value="true" />
-      <created>1786238513676</created>
-      <option name="number" value="00015" />
-      <option name="presentableId" value="LOCAL-00015" />
-      <option name="project" value="LOCAL" />
-      <updated>1786238513676</updated>
-    </task>
-    <task id="LOCAL-00016" summary="config aligned">
-      <option name="closed" value="true" />
-      <created>1786238527200</created>
-      <option name="number" value="00016" />
-      <option name="presentableId" value="LOCAL-00016" />
-      <option name="project" value="LOCAL" />
-      <updated>1786238527200</updated>
-    </task>
-    <task id="LOCAL-00017" summary="config aligned">
-      <option name="closed" value="true" />
-      <created>1786239558152</created>
-      <option name="number" value="00017" />
-      <option name="presentableId" value="LOCAL-00017" />
-      <option name="project" value="LOCAL" />
-      <updated>1786239558152</updated>
-    </task>
-    <task id="LOCAL-00018" summary="fix merge issue">
-      <option name="closed" value="true" />
-      <created>1786240007808</created>
-      <option name="number" value="00018" />
-      <option name="presentableId" value="LOCAL-00018" />
-      <option name="project" value="LOCAL" />
-      <updated>1786240007808</updated>
-    </task>
-    <task id="LOCAL-00019" summary="add num iteration config">
-      <option name="closed" value="true" />
-      <created>1786263507437</created>
-      <option name="number" value="00019" />
-      <option name="presentableId" value="LOCAL-00019" />
-      <option name="project" value="LOCAL" />
-      <updated>1786263507437</updated>
-    </task>
-    <task id="LOCAL-00020" summary="add track/ integral sift test">
-      <option name="closed" value="true" />
-      <created>1786263566738</created>
-      <option name="number" value="00020" />
-      <option name="presentableId" value="LOCAL-00020" />
-      <option name="project" value="LOCAL" />
-      <updated>1786263566738</updated>
-    </task>
-    <task id="LOCAL-00021" summary="change to sequential match">
-      <option name="closed" value="true" />
-      <created>1786412493757</created>
-      <option name="number" value="00021" />
-      <option name="presentableId" value="LOCAL-00021" />
-      <option name="project" value="LOCAL" />
-      <updated>1786412493757</updated>
-    </task>
-    <task id="LOCAL-00022" summary="add sequential window size">
-      <option name="closed" value="true" />
-      <created>1786412511254</created>
-      <option name="number" value="00022" />
-      <option name="presentableId" value="LOCAL-00022" />
-      <option name="project" value="LOCAL" />
-      <updated>1786412511254</updated>
-    </task>
-    <task id="LOCAL-00023" summary="add sequential window size">
-      <option name="closed" value="true" />
-      <created>1786412528750</created>
-      <option name="number" value="00023" />
-      <option name="presentableId" value="LOCAL-00023" />
-      <option name="project" value="LOCAL" />
-      <updated>1786412528750</updated>
-    </task>
-    <task id="LOCAL-00024" summary="add sequential match implementation">
-      <option name="closed" value="true" />
-      <created>1786412550451</created>
-      <option name="number" value="00024" />
-      <option name="presentableId" value="LOCAL-00024" />
-      <option name="project" value="LOCAL" />
-      <updated>1786412550451</updated>
-    </task>
-    <task id="LOCAL-00025" summary="add sequential match integral test/ Add two images pair match test">
-      <option name="closed" value="true" />
-      <created>1786412578164</created>
-      <option name="number" value="00025" />
-      <option name="presentableId" value="LOCAL-00025" />
-      <option name="project" value="LOCAL" />
-      <updated>1786412578164</updated>
-    </task>
-    <task id="LOCAL-00026" summary="configure qt, cmakelist change">
-      <option name="closed" value="true" />
-      <created>1786998805929</created>
-      <option name="number" value="00026" />
-      <option name="presentableId" value="LOCAL-00026" />
-      <option name="project" value="LOCAL" />
-      <updated>1786998805930</updated>
-    </task>
-    <option name="localTasksCounter" value="27" />
+    <option name="localTasksCounter" value="3" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
   </component>
-  <component name="Vcs.Log.Tabs.Properties">
-    <option name="RECENT_FILTERS">
-      <map>
-        <entry key="Branch">
-          <value>
-            <list>
-              <RecentGroup>
-                <option name="FILTER_VALUES">
-                  <option value="master" />
-                </option>
-              </RecentGroup>
-            </list>
-          </value>
-        </entry>
-      </map>
-    </option>
-    <option name="TAB_STATES">
-      <map>
-        <entry key="MAIN">
-          <value>
-            <State>
-              <option name="FILTERS">
-                <map>
-                  <entry key="branch">
-                    <value>
-                      <list>
-                        <option value="master" />
-                      </list>
-                    </value>
-                  </entry>
-                </map>
-              </option>
-            </State>
-          </value>
-        </entry>
-      </map>
-    </option>
-  </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="skeleton" />
-    <MESSAGE value="add reading json lib" />
-    <MESSAGE value="add data loader implementation" />
-    <MESSAGE value="add SIFT implementation" />
-    <MESSAGE value="correct the vec type error" />
-    <MESSAGE value="modify the mat/vec type" />
-    <MESSAGE value="change gitignore" />
-    <MESSAGE value="//remove unnecessary depth func" />
-    <MESSAGE value="add feature matching/tracking config" />
-    <MESSAGE value="Sift implementation" />
-    <MESSAGE value="correct name" />
-    <MESSAGE value="Add extract landmark global pos function" />
-    <MESSAGE value="change optimization to iterative process" />
-    <MESSAGE value="fix root/proj folder issue, sift test and yaml load" />
-    <MESSAGE value="expose some functions to public" />
-    <MESSAGE value="config aligned" />
-    <MESSAGE value="fix merge issue" />
-    <MESSAGE value="add num iteration config" />
-    <MESSAGE value="add track/ integral sift test" />
-    <MESSAGE value="change to sequential match" />
-    <MESSAGE value="add sequential window size" />
-    <MESSAGE value="add sequential match implementation" />
-    <MESSAGE value="add sequential match integral test/ Add two images pair match test" />
-    <MESSAGE value="configure qt, cmakelist change" />
-    <option name="LAST_COMMIT_MESSAGE" value="configure qt, cmakelist change" />
-  </component>
-  <component name="XSLT-Support.FileAssociations.UIState">
-    <expand />
-    <select />
+    <MESSAGE value="1. load 3dgs ply file &#10;2. draw 3dgs 3d points" />
+    <MESSAGE value="add mvp" />
+    <option name="LAST_COMMIT_MESSAGE" value="add mvp" />
   </component>
 </project>

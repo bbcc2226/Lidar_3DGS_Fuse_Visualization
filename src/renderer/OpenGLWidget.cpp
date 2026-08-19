@@ -1,23 +1,19 @@
 #include "OpenGLWidget.h"
 
-#include <QLinearGradient>
-#include <QMouseEvent>
+#include "OrientationGizmo.h"
+
 #include <QOpenGLContext>
 #include <QOpenGLShader>
 #include <QOpenGLShaderProgram>
 #include <QPainter>
-#include <QPolygonF>
-#include <QWheelEvent>
 
 #include <algorithm>
 #include <cstddef>
-#include <cmath>
 #include <limits>
 #include <type_traits>
 
 namespace
 {
-constexpr int kAnimationIntervalMs = 16;
 constexpr int kPositionAttribute = 0;
 constexpr int kColorAttribute = 1;
 
@@ -57,13 +53,6 @@ OpenGLWidget::OpenGLWidget(QWidget* parent)
 {
     setMinimumSize(640, 480);
     setFocusPolicy(Qt::StrongFocus);
-    animation_timer_.setInterval(kAnimationIntervalMs);
-    connect(&animation_timer_, &QTimer::timeout, this, [this]() {
-        angle_degrees_ += animation_speed_ * animation_timer_.interval() / 1000.0;
-        angle_degrees_ = std::fmod(angle_degrees_, 360.0);
-        update();
-    });
-    animation_timer_.start();
 }
 
 OpenGLWidget::~OpenGLWidget()
@@ -80,20 +69,6 @@ bool OpenGLWidget::isPointShaderReady() const
     return point_shader_program_ && point_shader_program_->isLinked();
 }
 
-void OpenGLWidget::setAnimating(bool enabled)
-{
-    if (enabled) {
-        animation_timer_.start();
-    } else {
-        animation_timer_.stop();
-    }
-}
-
-void OpenGLWidget::setAnimationSpeed(int degrees_per_second)
-{
-    animation_speed_ = degrees_per_second;
-}
-
 void OpenGLWidget::setBackgroundColor(const QColor& color)
 {
     if (color.isValid()) {
@@ -105,6 +80,7 @@ void OpenGLWidget::setBackgroundColor(const QColor& color)
 void OpenGLWidget::setGaussianPoints(const std::vector<GaussianPoint>& points)
 {
     point_data_ = points;
+    fitPointCloudToView();
 
     // Calls made before initializeGL() are retained and uploaded when the
     // context becomes available.
@@ -116,11 +92,12 @@ void OpenGLWidget::setGaussianPoints(const std::vector<GaussianPoint>& points)
     update();
 }
 
-void OpenGLWidget::resetView()
+void OpenGLWidget::setInteractionTransform(
+    const QMatrix4x4& transform, float yaw_degrees, float pitch_degrees)
 {
-    angle_degrees_ = 0.0;
-    zoom_ = 1.0;
-    resetCameraMatrices();
+    interaction_matrix_ = transform;
+    yaw_degrees_ = yaw_degrees;
+    pitch_degrees_ = pitch_degrees;
     update();
 }
 
@@ -240,6 +217,44 @@ void OpenGLWidget::resetCameraMatrices()
     view_matrix_.lookAt(camera_position_, camera_target_, camera_up_);
 }
 
+void OpenGLWidget::fitPointCloudToView()
+{
+    model_matrix_.setToIdentity();
+    if (point_data_.empty()) return;
+
+    QVector3D minimum(
+        point_data_.front().x,
+        point_data_.front().y,
+        point_data_.front().z);
+    QVector3D maximum = minimum;
+
+    for (const GaussianPoint& point : point_data_) {
+        minimum.setX(std::min(minimum.x(), point.x));
+        minimum.setY(std::min(minimum.y(), point.y));
+        minimum.setZ(std::min(minimum.z(), point.z));
+        maximum.setX(std::max(maximum.x(), point.x));
+        maximum.setY(std::max(maximum.y(), point.y));
+        maximum.setZ(std::max(maximum.z(), point.z));
+    }
+
+    const QVector3D center = (minimum + maximum) * 0.5f;
+    const QVector3D extent = maximum - minimum;
+    const float largest_extent = std::max({extent.x(), extent.y(), extent.z()});
+
+    // Map the largest dimension to 1.6 world units. The remaining 20% margin
+    // keeps points away from the viewport edges with the default camera/FOV.
+    constexpr float kTargetExtent = 1.6f;
+    constexpr float kMinimumExtent = 1.0e-6f;
+    const float scale = largest_extent > kMinimumExtent
+        ? kTargetExtent / largest_extent
+        : 1.0f;
+
+    // QMatrix4x4 post-multiplies these operations, producing Scale *
+    // Translation. A point is therefore centered first and scaled second.
+    model_matrix_.scale(scale);
+    model_matrix_.translate(-center);
+}
+
 void OpenGLWidget::renderGaussianPoints()
 {
     if (uploaded_point_count_ == 0 || !isPointShaderReady() ||
@@ -253,7 +268,7 @@ void OpenGLWidget::renderGaussianPoints()
     }
 
     const QMatrix4x4 model_view_projection =
-        projection_matrix_ * view_matrix_ * model_matrix_;
+        projection_matrix_ * view_matrix_ * interaction_matrix_ * model_matrix_;
     point_shader_program_->setUniformValue("u_mvp", model_view_projection);
 
     {
@@ -291,6 +306,7 @@ void OpenGLWidget::paintGL()
     painter.setRenderHint(QPainter::Antialiasing);
 
     paintDemoScene(painter);
+    OrientationGizmo::paint(painter, size(), yaw_degrees_, pitch_degrees_);
 }
 
 void OpenGLWidget::paintDemoScene(QPainter& painter)
@@ -303,50 +319,6 @@ void OpenGLWidget::paintDemoScene(QPainter& painter)
     for (int y = height() / 2 % grid_spacing; y < height(); y += grid_spacing)
         painter.drawLine(0, y, width(), y);
 
-    painter.translate(width() * 0.5, height() * 0.5);
-    painter.scale(zoom_, zoom_);
-    painter.rotate(angle_degrees_);
-
-    const double radius = std::min(width(), height()) * 0.22;
-    QPolygonF triangle;
-    triangle << QPointF(0.0, -radius)
-             << QPointF(radius * 0.866, radius * 0.5)
-             << QPointF(-radius * 0.866, radius * 0.5);
-
-    QLinearGradient fill(-radius, -radius, radius, radius);
-    fill.setColorAt(0.0, QColor(52, 211, 153));
-    fill.setColorAt(0.5, QColor(59, 130, 246));
-    fill.setColorAt(1.0, QColor(168, 85, 247));
-    painter.setBrush(fill);
-    painter.setPen(QPen(QColor(235, 245, 255), 3.0));
-    painter.drawPolygon(triangle);
-
-    painter.setBrush(QColor(255, 255, 255));
-    painter.setPen(Qt::NoPen);
-    painter.drawEllipse(QPointF(0.0, 0.0), 6.0, 6.0);
-
-    painter.resetTransform();
     painter.setPen(QColor(215, 225, 240));
-    painter.drawText(18, 28, "Qt OpenGL viewport  |  drag to rotate  |  wheel to zoom");
-}
-
-void OpenGLWidget::mousePressEvent(QMouseEvent* event)
-{
-    last_mouse_position_ = event->pos();
-}
-
-void OpenGLWidget::mouseMoveEvent(QMouseEvent* event)
-{
-    const QPoint delta = event->pos() - last_mouse_position_;
-    angle_degrees_ += delta.x() * 0.5;
-    last_mouse_position_ = event->pos();
-    update();
-}
-
-void OpenGLWidget::wheelEvent(QWheelEvent* event)
-{
-    zoom_ = std::clamp(
-        zoom_ * (event->angleDelta().y() > 0 ? 1.1 : 0.9), 0.25, 3.0);
-    update();
-    event->accept();
+    painter.drawText(18, 28, "Qt OpenGL point-cloud viewport");
 }

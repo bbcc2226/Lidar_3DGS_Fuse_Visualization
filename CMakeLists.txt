@@ -81,8 +81,12 @@ add_executable(${PROJECT_NAME}_qt_viewer
         src/app/main.cpp
         src/app/MainWindow.cpp
         src/app/MainWindow.h
+        src/app/ViewerController.cpp
+        src/app/ViewerController.h
         src/renderer/OpenGLWidget.cpp
         src/renderer/OpenGLWidget.h
+        src/renderer/OrientationGizmo.cpp
+        src/renderer/OrientationGizmo.h
         src/processing/3dgsProcessing.cpp
         src/processing/3dgsProcessing.h
 )
