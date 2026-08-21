@@ -3,7 +3,7 @@
 #include <QColor>
 #include <QMatrix4x4>
 #include <QOpenGLBuffer>
-#include <QOpenGLFunctions>
+#include <QOpenGLExtraFunctions>
 #include <QOpenGLVertexArrayObject>
 #include <QOpenGLWidget>
 #include <QVector3D>
@@ -17,7 +17,7 @@
 class QOpenGLShaderProgram;
 class QPainter;
 
-class OpenGLWidget final : public QOpenGLWidget, protected QOpenGLFunctions
+class OpenGLWidget final : public QOpenGLWidget, protected QOpenGLExtraFunctions
 {
 public:
     explicit OpenGLWidget(QWidget* parent = nullptr);

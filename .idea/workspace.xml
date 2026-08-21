@@ -12,7 +12,11 @@
     <configurations />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="e1a02559-47c6-4734-9473-6c916dcb5f70" name="Changes" comment="add 3dgs data loading" />
+    <list default="true" id="e1a02559-47c6-4734-9473-6c916dcb5f70" name="Changes" comment="-add gpu splat structure">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/renderer/OpenGLWidget.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/renderer/OpenGLWidget.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/renderer/OpenGLWidget.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/renderer/OpenGLWidget.h" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -44,6 +48,9 @@
     <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/processing/3dgsProcessing.cpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/renderer/OpenGLWidget.cpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/renderer/OpenGLWidget.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/renderer/OpenGLWidget.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/renderer/OpenGLWidget.h" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/renderer/OpenGLWidget.h" root0="SKIP_HIGHLIGHTING" />
   </component>
   <component name="ProjectColorInfo"><![CDATA[{
   "customColor": "",
@@ -101,7 +108,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1787013778334</updated>
-      <workItem from="1787013781465" duration="5156000" />
+      <workItem from="1787013781465" duration="6659000" />
     </task>
     <task id="LOCAL-00003" summary="add gizmo and addsome mouse event">
       <option name="closed" value="true" />
@@ -135,7 +142,15 @@
       <option name="project" value="LOCAL" />
       <updated>1787288342532</updated>
     </task>
-    <option name="localTasksCounter" value="7" />
+    <task id="LOCAL-00007" summary="-add gpu splat structure">
+      <option name="closed" value="true" />
+      <created>1787289256239</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1787289256239</updated>
+    </task>
+    <option name="localTasksCounter" value="8" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -147,6 +162,7 @@
     <MESSAGE value="add gizmo and addsome mouse event" />
     <MESSAGE value="test gauss load" />
     <MESSAGE value="add 3dgs data loading" />
-    <option name="LAST_COMMIT_MESSAGE" value="add 3dgs data loading" />
+    <MESSAGE value="-add gpu splat structure" />
+    <option name="LAST_COMMIT_MESSAGE" value="-add gpu splat structure" />
   </component>
 </project>

@@ -180,11 +180,13 @@ bool OpenGLWidget::createPointBuffers()
     glVertexAttribPointer(
         kPositionAttribute, 3, GL_FLOAT, GL_FALSE, sizeof(GpuSplatData),
         reinterpret_cast<const void*>(offsetof(GpuSplatData, x)));
+    glVertexAttribDivisor(kPositionAttribute, 1);
 
     glEnableVertexAttribArray(kColorAttribute);
     glVertexAttribPointer(
         kColorAttribute, 3, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(GpuSplatData),
         reinterpret_cast<const void*>(offsetof(GpuSplatData, red)));
+    glVertexAttribDivisor(kColorAttribute, 1);
 
     point_vbo_.release();
     return true;
@@ -286,8 +288,8 @@ void OpenGLWidget::renderGaussianPoints()
 
     {
         QOpenGLVertexArrayObject::Binder vao_binder(&point_vao_);
-        glDrawArrays(
-            GL_POINTS, 0, static_cast<GLsizei>(uploaded_point_count_));
+        glDrawArraysInstanced(
+            GL_POINTS, 0, 1, static_cast<GLsizei>(uploaded_point_count_));
     }
 
     point_shader_program_->release();
