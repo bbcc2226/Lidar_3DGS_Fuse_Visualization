@@ -98,6 +98,29 @@ std::uint8_t sphericalHarmonicColor(double dc_value)
     const double linear_color = std::clamp(0.5 + kShC0 * dc_value, 0.0, 1.0);
     return static_cast<std::uint8_t>(std::lround(linear_color * 255.0));
 }
+
+template <std::size_t Size>
+bool hasCompleteGroup(const std::array<int, Size>& indices)
+{
+    return std::all_of(
+        indices.begin(), indices.end(), [](int index) { return index >= 0; });
+}
+
+template <std::size_t Size>
+bool hasAnyGroup(const std::array<int, Size>& indices)
+{
+    return std::any_of(
+        indices.begin(), indices.end(), [](int index) { return index >= 0; });
+}
+
+int sphericalHarmonicDegree(std::size_t rest_coefficient_count)
+{
+    if (rest_coefficient_count == 0) return 0;
+    if (rest_coefficient_count == 9) return 1;
+    if (rest_coefficient_count == 24) return 2;
+    if (rest_coefficient_count == 45) return 3;
+    return -1;
+}
 } // namespace
 
 bool GaussianSplatProcessing::loadPly(const std::string& path)
@@ -204,10 +227,78 @@ bool GaussianSplatProcessing::loadPly(const std::string& path)
         propertyIndex(properties, "f_dc_0"),
         propertyIndex(properties, "f_dc_1"),
         propertyIndex(properties, "f_dc_2")};
-    const bool has_rgb = std::all_of(
-        rgb_indices.begin(), rgb_indices.end(), [](int index) { return index >= 0; });
-    const bool has_dc = std::all_of(
-        dc_indices.begin(), dc_indices.end(), [](int index) { return index >= 0; });
+    const std::array<int, 3> scale_indices{
+        propertyIndex(properties, "scale_0"),
+        propertyIndex(properties, "scale_1"),
+        propertyIndex(properties, "scale_2")};
+    const std::array<int, 4> rotation_indices{
+        propertyIndex(properties, "rot_0"),
+        propertyIndex(properties, "rot_1"),
+        propertyIndex(properties, "rot_2"),
+        propertyIndex(properties, "rot_3")};
+    const int opacity_index = propertyIndex(properties, "opacity");
+
+    const bool has_rgb = hasCompleteGroup(rgb_indices);
+    const bool has_dc = hasCompleteGroup(dc_indices);
+    const bool has_scale = hasCompleteGroup(scale_indices);
+    const bool has_rotation = hasCompleteGroup(rotation_indices);
+
+    if (hasAnyGroup(rgb_indices) && !has_rgb) {
+        last_error_ = "PLY contains an incomplete red/green/blue property group.";
+        return false;
+    }
+    if (hasAnyGroup(dc_indices) && !has_dc) {
+        last_error_ = "PLY contains an incomplete f_dc_0/f_dc_1/f_dc_2 property group.";
+        return false;
+    }
+    if (hasAnyGroup(scale_indices) && !has_scale) {
+        last_error_ = "PLY contains an incomplete scale_0/scale_1/scale_2 property group.";
+        return false;
+    }
+    if (hasAnyGroup(rotation_indices) && !has_rotation) {
+        last_error_ = "PLY contains an incomplete rot_0/rot_1/rot_2/rot_3 property group.";
+        return false;
+    }
+
+    std::array<int, 45> rest_indices{};
+    rest_indices.fill(-1);
+    std::size_t rest_count = 0;
+    bool rest_gap_found = false;
+    for (std::size_t coefficient = 0;
+         coefficient <= rest_indices.size(); ++coefficient) {
+        const int index = propertyIndex(
+            properties, "f_rest_" + std::to_string(coefficient));
+        if (index < 0) {
+            rest_gap_found = true;
+            continue;
+        }
+        if (coefficient == rest_indices.size()) {
+            last_error_ = "PLY spherical-harmonic degree above 3 is not supported.";
+            return false;
+        }
+        if (rest_gap_found) {
+            last_error_ = "PLY spherical-harmonic properties must be contiguous from f_rest_0.";
+            return false;
+        }
+        rest_indices[coefficient] = index;
+        ++rest_count;
+    }
+    const int sh_degree = sphericalHarmonicDegree(rest_count);
+    if (sh_degree < 0) {
+        last_error_ = "PLY has an unsupported spherical-harmonic coefficient count: " +
+            std::to_string(rest_count) + ".";
+        return false;
+    }
+    if (rest_count > 0 && !has_dc) {
+        last_error_ = "PLY contains f_rest properties without the f_dc color group.";
+        return false;
+    }
+
+    metadata_.has_scale = has_scale;
+    metadata_.has_rotation = has_rotation;
+    metadata_.has_opacity = opacity_index >= 0;
+    metadata_.has_sh_dc = has_dc;
+    metadata_.sh_degree = sh_degree;
 
     std::vector<GaussianPoint> loaded_points;
     try {
@@ -230,15 +321,17 @@ bool GaussianSplatProcessing::loadPly(const std::string& path)
             }
         }
 
-        const double x = values[static_cast<std::size_t>(x_index)];
-        const double y = values[static_cast<std::size_t>(y_index)];
-        const double z = values[static_cast<std::size_t>(z_index)];
-        if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z)) {
-            last_error_ = "PLY contains a non-finite position at vertex " +
+        if (!std::all_of(values.begin(), values.end(), [](double value) {
+                return std::isfinite(value);
+            })) {
+            last_error_ = "PLY contains a non-finite value at vertex " +
                 std::to_string(vertex) + ".";
             return false;
         }
 
+        const double x = values[static_cast<std::size_t>(x_index)];
+        const double y = values[static_cast<std::size_t>(y_index)];
+        const double z = values[static_cast<std::size_t>(z_index)];
         GaussianPoint point;
         point.x = static_cast<float>(x);
         point.y = static_cast<float>(y);
@@ -255,6 +348,33 @@ bool GaussianSplatProcessing::loadPly(const std::string& path)
             point.blue = sphericalHarmonicColor(
                 values[static_cast<std::size_t>(dc_indices[2])]);
         }
+
+        if (has_scale) {
+            for (std::size_t component = 0; component < point.scale.size(); ++component) {
+                point.scale[component] = static_cast<float>(
+                    values[static_cast<std::size_t>(scale_indices[component])]);
+            }
+        }
+        if (has_rotation) {
+            for (std::size_t component = 0; component < point.rotation.size(); ++component) {
+                point.rotation[component] = static_cast<float>(
+                    values[static_cast<std::size_t>(rotation_indices[component])]);
+            }
+        }
+        if (opacity_index >= 0) {
+            point.opacity = static_cast<float>(
+                values[static_cast<std::size_t>(opacity_index)]);
+        }
+        if (has_dc) {
+            for (std::size_t component = 0; component < point.sh_dc.size(); ++component) {
+                point.sh_dc[component] = static_cast<float>(
+                    values[static_cast<std::size_t>(dc_indices[component])]);
+            }
+        }
+        for (std::size_t coefficient = 0; coefficient < rest_count; ++coefficient) {
+            point.sh_rest[coefficient] = static_cast<float>(
+                values[static_cast<std::size_t>(rest_indices[coefficient])]);
+        }
         loaded_points.push_back(point);
     }
 
@@ -265,6 +385,7 @@ bool GaussianSplatProcessing::loadPly(const std::string& path)
 void GaussianSplatProcessing::clear()
 {
     points_.clear();
+    metadata_ = {};
     last_error_.clear();
 }
 
@@ -276,6 +397,11 @@ std::size_t GaussianSplatProcessing::splatCount() const
 const std::vector<GaussianPoint>& GaussianSplatProcessing::points() const
 {
     return points_;
+}
+
+const GaussianPlyMetadata& GaussianSplatProcessing::metadata() const
+{
+    return metadata_;
 }
 
 const std::string& GaussianSplatProcessing::lastError() const

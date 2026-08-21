@@ -61,10 +61,15 @@ void ViewerController::openPlyFile(QWidget* dialog_parent)
     }
 
     viewer_->setGaussianPoints(point_processing_.points());
+    const GaussianPlyMetadata& metadata = point_processing_.metadata();
+    const QString data_description = metadata.isComplete3DGS()
+        ? QString("3DGS | SH degree %1").arg(metadata.sh_degree)
+        : QString("point cloud");
     emit loadStatusChanged(
-        QString("Loaded %1 points | uploaded %2")
+        QString("Loaded %1 points | uploaded %2 | %3")
             .arg(static_cast<qulonglong>(point_processing_.splatCount()))
-            .arg(static_cast<qulonglong>(viewer_->uploadedPointCount())),
+            .arg(static_cast<qulonglong>(viewer_->uploadedPointCount()))
+            .arg(data_description),
         path);
 }
 

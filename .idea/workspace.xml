@@ -12,14 +12,12 @@
     <configurations />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="e1a02559-47c6-4734-9473-6c916dcb5f70" name="Changes" comment="add mvp">
+    <list default="true" id="e1a02559-47c6-4734-9473-6c916dcb5f70" name="Changes" comment="add gizmo and addsome mouse event">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/CMakeLists.txt" beforeDir="false" afterPath="$PROJECT_DIR$/CMakeLists.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/MainWindow.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/MainWindow.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/MainWindow.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/MainWindow.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/renderer/OpenGLWidget.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/renderer/OpenGLWidget.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/renderer/OpenGLWidget.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/renderer/OpenGLWidget.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/ViewerController.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/ViewerController.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/processing/3dgsProcessing.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/processing/3dgsProcessing.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/processing/3dgsProcessing.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/processing/3dgsProcessing.h" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -45,6 +43,9 @@
   }
 }]]></component>
   <component name="HighlightingSettingsPerFile">
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/app/MainWindow.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/app/MainWindow.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/renderer/OpenGLWidget.cpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/renderer/OpenGLWidget.cpp" root0="SKIP_HIGHLIGHTING" />
   </component>
   <component name="ProjectColorInfo"><![CDATA[{
@@ -103,9 +104,25 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1787013778334</updated>
-      <workItem from="1787013781465" duration="3359000" />
+      <workItem from="1787013781465" duration="4417000" />
     </task>
-    <option name="localTasksCounter" value="3" />
+    <task id="LOCAL-00003" summary="add gizmo and addsome mouse event">
+      <option name="closed" value="true" />
+      <created>1787110087967</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1787110087967</updated>
+    </task>
+    <task id="LOCAL-00004" summary="add gizmo and addsome mouse event">
+      <option name="closed" value="true" />
+      <created>1787110324018</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1787110324018</updated>
+    </task>
+    <option name="localTasksCounter" value="5" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -114,6 +131,7 @@
   <component name="VcsManagerConfiguration">
     <MESSAGE value="1. load 3dgs ply file &#10;2. draw 3dgs 3d points" />
     <MESSAGE value="add mvp" />
-    <option name="LAST_COMMIT_MESSAGE" value="add mvp" />
+    <MESSAGE value="add gizmo and addsome mouse event" />
+    <option name="LAST_COMMIT_MESSAGE" value="add gizmo and addsome mouse event" />
   </component>
 </project>

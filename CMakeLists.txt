@@ -32,7 +32,7 @@ list(REMOVE_ITEM PROJECT_SOURCES
 # The desktop application and renderer have their own executable target and
 # must not be folded into the core library by the recursive source glob.
 list(FILTER PROJECT_SOURCES EXCLUDE REGEX
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/(app|renderer|processing)/.*\\.cpp$"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/(app|renderer)/.*\\.cpp$"
 )
 
 add_library(${PROJECT_NAME}_lib
@@ -42,6 +42,7 @@ add_library(${PROJECT_NAME}_lib
 target_include_directories(${PROJECT_NAME}_lib
         PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/processing
         ${CMAKE_CURRENT_SOURCE_DIR}/3rd_party/sophus
         ${OpenCV_INCLUDE_DIRS}
         ${CERES_INCLUDE_DIRS}
