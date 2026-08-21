@@ -79,7 +79,19 @@ void OpenGLWidget::setBackgroundColor(const QColor& color)
 
 void OpenGLWidget::setGaussianPoints(const std::vector<GaussianPoint>& points)
 {
-    point_data_ = points;
+    gpu_splat_data_.clear();
+    gpu_splat_data_.reserve(points.size());
+    for (const GaussianPoint& point : points) {
+        GpuSplatData gpu_splat;
+        gpu_splat.x = point.x;
+        gpu_splat.y = point.y;
+        gpu_splat.z = point.z;
+        gpu_splat.red = point.red;
+        gpu_splat.green = point.green;
+        gpu_splat.blue = point.blue;
+        gpu_splat.opacity = point.opacity;
+        gpu_splat_data_.push_back(gpu_splat);
+    }
     fitPointCloudToView();
 
     // Calls made before initializeGL() are retained and uploaded when the
@@ -145,8 +157,8 @@ bool OpenGLWidget::createPointShaderProgram()
 
 bool OpenGLWidget::createPointBuffers()
 {
-    static_assert(std::is_standard_layout<GaussianPoint>::value,
-                  "GaussianPoint must remain usable as an interleaved vertex type.");
+    static_assert(std::is_standard_layout<GpuSplatData>::value,
+                  "GpuSplatData must be an interleaved vertex type.");
 
     if (!point_vao_.isCreated() && !point_vao_.create()) {
         qWarning("Failed to create Gaussian point VAO.");
@@ -166,13 +178,13 @@ bool OpenGLWidget::createPointBuffers()
 
     glEnableVertexAttribArray(kPositionAttribute);
     glVertexAttribPointer(
-        kPositionAttribute, 3, GL_FLOAT, GL_FALSE, sizeof(GaussianPoint),
-        reinterpret_cast<const void*>(offsetof(GaussianPoint, x)));
+        kPositionAttribute, 3, GL_FLOAT, GL_FALSE, sizeof(GpuSplatData),
+        reinterpret_cast<const void*>(offsetof(GpuSplatData, x)));
 
     glEnableVertexAttribArray(kColorAttribute);
     glVertexAttribPointer(
-        kColorAttribute, 3, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(GaussianPoint),
-        reinterpret_cast<const void*>(offsetof(GaussianPoint, red)));
+        kColorAttribute, 3, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(GpuSplatData),
+        reinterpret_cast<const void*>(offsetof(GpuSplatData, red)));
 
     point_vbo_.release();
     return true;
@@ -183,7 +195,8 @@ bool OpenGLWidget::uploadPointBuffer()
     uploaded_point_count_ = 0;
     if (!point_vbo_.isCreated()) return false;
 
-    const std::size_t byte_count = point_data_.size() * sizeof(GaussianPoint);
+    const std::size_t byte_count =
+        gpu_splat_data_.size() * sizeof(GpuSplatData);
     if (byte_count > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
         qWarning("Gaussian point buffer exceeds QOpenGLBuffer's allocation limit.");
         return false;
@@ -194,10 +207,10 @@ bool OpenGLWidget::uploadPointBuffer()
         return false;
     }
     point_vbo_.allocate(
-        point_data_.empty() ? nullptr : point_data_.data(),
+        gpu_splat_data_.empty() ? nullptr : gpu_splat_data_.data(),
         static_cast<int>(byte_count));
     point_vbo_.release();
-    uploaded_point_count_ = point_data_.size();
+    uploaded_point_count_ = gpu_splat_data_.size();
     return true;
 }
 
@@ -220,15 +233,15 @@ void OpenGLWidget::resetCameraMatrices()
 void OpenGLWidget::fitPointCloudToView()
 {
     model_matrix_.setToIdentity();
-    if (point_data_.empty()) return;
+    if (gpu_splat_data_.empty()) return;
 
     QVector3D minimum(
-        point_data_.front().x,
-        point_data_.front().y,
-        point_data_.front().z);
+        gpu_splat_data_.front().x,
+        gpu_splat_data_.front().y,
+        gpu_splat_data_.front().z);
     QVector3D maximum = minimum;
 
-    for (const GaussianPoint& point : point_data_) {
+    for (const GpuSplatData& point : gpu_splat_data_) {
         minimum.setX(std::min(minimum.x(), point.x));
         minimum.setY(std::min(minimum.y(), point.y));
         minimum.setZ(std::min(minimum.z(), point.z));

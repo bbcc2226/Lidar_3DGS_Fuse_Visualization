@@ -8,6 +8,7 @@
 #include <QOpenGLWidget>
 #include <QVector3D>
 
+#include <cstdint>
 #include <memory>
 #include <vector>
 
@@ -36,6 +37,20 @@ protected:
     void paintGL() override;
 
 private:
+    // Compact upload format owned by the renderer. The loader's GaussianPoint
+    // can evolve without changing the OpenGL vertex layout.
+    struct GpuSplatData
+    {
+        float x = 0.0f;
+        float y = 0.0f;
+        float z = 0.0f;
+        std::uint8_t red = 255;
+        std::uint8_t green = 255;
+        std::uint8_t blue = 255;
+        std::uint8_t color_padding = 255;
+        float opacity = 0.0f;
+    };
+
     bool createPointBuffers();
     bool createPointShaderProgram();
     bool uploadPointBuffer();
@@ -48,7 +63,7 @@ private:
     QOpenGLVertexArrayObject point_vao_;
     QOpenGLBuffer point_vbo_{QOpenGLBuffer::VertexBuffer};
     std::unique_ptr<QOpenGLShaderProgram> point_shader_program_;
-    std::vector<GaussianPoint> point_data_;
+    std::vector<GpuSplatData> gpu_splat_data_;
     QMatrix4x4 model_matrix_;
     QMatrix4x4 view_matrix_;
     QMatrix4x4 projection_matrix_;

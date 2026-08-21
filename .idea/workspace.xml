@@ -12,13 +12,7 @@
     <configurations />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="e1a02559-47c6-4734-9473-6c916dcb5f70" name="Changes" comment="add gizmo and addsome mouse event">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/CMakeLists.txt" beforeDir="false" afterPath="$PROJECT_DIR$/CMakeLists.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/ViewerController.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/ViewerController.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/processing/3dgsProcessing.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/processing/3dgsProcessing.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/processing/3dgsProcessing.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/processing/3dgsProcessing.h" afterDir="false" />
-    </list>
+    <list default="true" id="e1a02559-47c6-4734-9473-6c916dcb5f70" name="Changes" comment="add 3dgs data loading" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -45,6 +39,9 @@
   <component name="HighlightingSettingsPerFile">
     <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/app/MainWindow.cpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/app/MainWindow.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/app/ViewerController.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/app/ViewerController.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/processing/3dgsProcessing.cpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/renderer/OpenGLWidget.cpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/renderer/OpenGLWidget.cpp" root0="SKIP_HIGHLIGHTING" />
   </component>
@@ -104,7 +101,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1787013778334</updated>
-      <workItem from="1787013781465" duration="4417000" />
+      <workItem from="1787013781465" duration="5156000" />
     </task>
     <task id="LOCAL-00003" summary="add gizmo and addsome mouse event">
       <option name="closed" value="true" />
@@ -122,7 +119,23 @@
       <option name="project" value="LOCAL" />
       <updated>1787110324018</updated>
     </task>
-    <option name="localTasksCounter" value="5" />
+    <task id="LOCAL-00005" summary="test gauss load">
+      <option name="closed" value="true" />
+      <created>1787286330810</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1787286330810</updated>
+    </task>
+    <task id="LOCAL-00006" summary="add 3dgs data loading">
+      <option name="closed" value="true" />
+      <created>1787288342532</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1787288342532</updated>
+    </task>
+    <option name="localTasksCounter" value="7" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -132,6 +145,8 @@
     <MESSAGE value="1. load 3dgs ply file &#10;2. draw 3dgs 3d points" />
     <MESSAGE value="add mvp" />
     <MESSAGE value="add gizmo and addsome mouse event" />
-    <option name="LAST_COMMIT_MESSAGE" value="add gizmo and addsome mouse event" />
+    <MESSAGE value="test gauss load" />
+    <MESSAGE value="add 3dgs data loading" />
+    <option name="LAST_COMMIT_MESSAGE" value="add 3dgs data loading" />
   </component>
 </project>
