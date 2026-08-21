@@ -61,6 +61,7 @@ private:
     void paintDemoScene(QPainter& painter);
 
     QOpenGLVertexArrayObject point_vao_;
+    QOpenGLBuffer quad_vbo_{QOpenGLBuffer::VertexBuffer};
     QOpenGLBuffer point_vbo_{QOpenGLBuffer::VertexBuffer};
     std::unique_ptr<QOpenGLShaderProgram> point_shader_program_;
     std::vector<GpuSplatData> gpu_splat_data_;

@@ -6,6 +6,7 @@
 #include <QOpenGLShader>
 #include <QOpenGLShaderProgram>
 #include <QPainter>
+#include <QVector2D>
 
 #include <algorithm>
 #include <cstddef>
@@ -14,23 +15,38 @@
 
 namespace
 {
-constexpr int kPositionAttribute = 0;
-constexpr int kColorAttribute = 1;
+constexpr int kCornerAttribute = 0;
+constexpr int kPositionAttribute = 1;
+constexpr int kColorAttribute = 2;
+constexpr float kSquareHalfSizePixels = 3.0f;
+
+constexpr float kQuadCorners[] = {
+    -1.0f, -1.0f,
+     1.0f, -1.0f,
+    -1.0f,  1.0f,
+     1.0f,  1.0f,
+};
 
 constexpr char kPointVertexShader[] = R"GLSL(
 #version 330 core
 
-layout(location = 0) in vec3 in_position;
-layout(location = 1) in vec3 in_color;
+layout(location = 0) in vec2 in_corner;
+layout(location = 1) in vec3 in_position;
+layout(location = 2) in vec3 in_color;
 
 uniform mat4 u_mvp;
+uniform vec2 u_viewport_size;
+uniform float u_square_half_size_pixels;
 
 out vec3 vertex_color;
 
 void main()
 {
-    gl_Position = u_mvp * vec4(in_position, 1.0);
-    gl_PointSize = 3.0;
+    vec4 center_clip = u_mvp * vec4(in_position, 1.0);
+    vec2 offset_ndc = in_corner * u_square_half_size_pixels * 2.0
+        / u_viewport_size;
+    gl_Position = center_clip;
+    gl_Position.xy += offset_ndc * center_clip.w;
     vertex_color = in_color;
 }
 )GLSL";
@@ -117,7 +133,6 @@ void OpenGLWidget::initializeGL()
 {
     initializeOpenGLFunctions();
     glEnable(GL_DEPTH_TEST);
-    glEnable(GL_PROGRAM_POINT_SIZE);
     resetCameraMatrices();
 
     if (createPointBuffers()) {
@@ -164,12 +179,29 @@ bool OpenGLWidget::createPointBuffers()
         qWarning("Failed to create Gaussian point VAO.");
         return false;
     }
+    if (!quad_vbo_.isCreated() && !quad_vbo_.create()) {
+        qWarning("Failed to create shared quad VBO.");
+        return false;
+    }
     if (!point_vbo_.isCreated() && !point_vbo_.create()) {
         qWarning("Failed to create Gaussian point VBO.");
         return false;
     }
 
     QOpenGLVertexArrayObject::Binder vao_binder(&point_vao_);
+    if (!quad_vbo_.bind()) {
+        qWarning("Failed to bind shared quad VBO.");
+        return false;
+    }
+    quad_vbo_.setUsagePattern(QOpenGLBuffer::StaticDraw);
+    quad_vbo_.allocate(kQuadCorners, static_cast<int>(sizeof(kQuadCorners)));
+
+    glEnableVertexAttribArray(kCornerAttribute);
+    glVertexAttribPointer(
+        kCornerAttribute, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
+    glVertexAttribDivisor(kCornerAttribute, 0);
+    quad_vbo_.release();
+
     if (!point_vbo_.bind()) {
         qWarning("Failed to bind Gaussian point VBO.");
         return false;
@@ -221,6 +253,7 @@ void OpenGLWidget::destroyPointResources()
     uploaded_point_count_ = 0;
     point_shader_program_.reset();
     point_vbo_.destroy();
+    quad_vbo_.destroy();
     point_vao_.destroy();
 }
 
@@ -285,11 +318,16 @@ void OpenGLWidget::renderGaussianPoints()
     const QMatrix4x4 model_view_projection =
         projection_matrix_ * view_matrix_ * interaction_matrix_ * model_matrix_;
     point_shader_program_->setUniformValue("u_mvp", model_view_projection);
+    point_shader_program_->setUniformValue(
+        "u_viewport_size", QVector2D(width(), height()));
+    point_shader_program_->setUniformValue(
+        "u_square_half_size_pixels", kSquareHalfSizePixels);
 
     {
         QOpenGLVertexArrayObject::Binder vao_binder(&point_vao_);
         glDrawArraysInstanced(
-            GL_POINTS, 0, 1, static_cast<GLsizei>(uploaded_point_count_));
+            GL_TRIANGLE_STRIP, 0, 4,
+            static_cast<GLsizei>(uploaded_point_count_));
     }
 
     point_shader_program_->release();
