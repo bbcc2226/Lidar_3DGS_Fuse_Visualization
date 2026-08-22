@@ -49,6 +49,9 @@ private:
         std::uint8_t blue = 255;
         std::uint8_t color_padding = 255;
         float opacity = 0.0f;
+        float scale_x = 0.0f;
+        float scale_y = 0.0f;
+        float scale_z = 0.0f;
     };
 
     bool createSplatBuffers();

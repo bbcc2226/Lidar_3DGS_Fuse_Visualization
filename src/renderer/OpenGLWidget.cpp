@@ -19,6 +19,7 @@ constexpr int kCornerAttribute = 0;
 constexpr int kPositionAttribute = 1;
 constexpr int kColorAttribute = 2;
 constexpr int kOpacityAttribute = 3;
+constexpr int kScaleAttribute = 4;
 constexpr float kSquareHalfSizePixels = 3.0f;
 
 constexpr float kQuadCorners[] = {
@@ -35,6 +36,7 @@ layout(location = 0) in vec2 in_corner;
 layout(location = 1) in vec3 in_position;
 layout(location = 2) in vec3 in_color;
 layout(location = 3) in float in_opacity;
+layout(location = 4) in vec3 in_scale;
 
 uniform mat4 u_mvp;
 uniform vec2 u_viewport_size;
@@ -122,6 +124,9 @@ void OpenGLWidget::setGaussianPoints(const std::vector<GaussianPoint>& points)
         gpu_splat.green = point.green;
         gpu_splat.blue = point.blue;
         gpu_splat.opacity = point.opacity;
+        gpu_splat.scale_x = point.scale[0];
+        gpu_splat.scale_y = point.scale[1];
+        gpu_splat.scale_z = point.scale[2];
         gpu_splat_data_.push_back(gpu_splat);
     }
     fitPointCloudToView();
@@ -190,6 +195,10 @@ bool OpenGLWidget::createSplatBuffers()
 {
     static_assert(std::is_standard_layout<GpuSplatData>::value,
                   "GpuSplatData must be an interleaved vertex type.");
+    static_assert(sizeof(GpuSplatData) == 32,
+                  "GpuSplatData layout must match the configured attributes.");
+    static_assert(offsetof(GpuSplatData, scale_x) == 20,
+                  "GpuSplatData scale offset must remain stable.");
 
     if (!splat_vao_.isCreated() && !splat_vao_.create()) {
         qWarning("Failed to create Gaussian splat VAO.");
@@ -241,6 +250,12 @@ bool OpenGLWidget::createSplatBuffers()
         kOpacityAttribute, 1, GL_FLOAT, GL_FALSE, sizeof(GpuSplatData),
         reinterpret_cast<const void*>(offsetof(GpuSplatData, opacity)));
     glVertexAttribDivisor(kOpacityAttribute, 1);
+
+    glEnableVertexAttribArray(kScaleAttribute);
+    glVertexAttribPointer(
+        kScaleAttribute, 3, GL_FLOAT, GL_FALSE, sizeof(GpuSplatData),
+        reinterpret_cast<const void*>(offsetof(GpuSplatData, scale_x)));
+    glVertexAttribDivisor(kScaleAttribute, 1);
 
     splat_instance_vbo_.release();
     return true;
