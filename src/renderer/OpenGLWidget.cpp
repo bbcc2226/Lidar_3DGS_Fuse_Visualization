@@ -39,6 +39,7 @@ uniform vec2 u_viewport_size;
 uniform float u_square_half_size_pixels;
 
 out vec3 vertex_color;
+out vec2 splat_coordinate;
 
 void main()
 {
@@ -48,6 +49,7 @@ void main()
     gl_Position = center_clip;
     gl_Position.xy += offset_ndc * center_clip.w;
     vertex_color = in_color;
+    splat_coordinate = in_corner;
 }
 )GLSL";
 
@@ -55,10 +57,15 @@ constexpr char kPointFragmentShader[] = R"GLSL(
 #version 330 core
 
 in vec3 vertex_color;
+in vec2 splat_coordinate;
 out vec4 fragment_color;
 
 void main()
 {
+    float radius_squared = dot(splat_coordinate, splat_coordinate);
+    if (radius_squared > 1.0)
+        discard;
+
     fragment_color = vec4(vertex_color, 1.0);
 }
 )GLSL";
