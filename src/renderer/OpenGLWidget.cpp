@@ -18,6 +18,7 @@ namespace
 constexpr int kCornerAttribute = 0;
 constexpr int kPositionAttribute = 1;
 constexpr int kColorAttribute = 2;
+constexpr int kOpacityAttribute = 3;
 constexpr float kSquareHalfSizePixels = 3.0f;
 
 constexpr float kQuadCorners[] = {
@@ -33,6 +34,7 @@ constexpr char kPointVertexShader[] = R"GLSL(
 layout(location = 0) in vec2 in_corner;
 layout(location = 1) in vec3 in_position;
 layout(location = 2) in vec3 in_color;
+layout(location = 3) in float in_opacity;
 
 uniform mat4 u_mvp;
 uniform vec2 u_viewport_size;
@@ -40,6 +42,7 @@ uniform float u_square_half_size_pixels;
 
 out vec3 vertex_color;
 out vec2 splat_coordinate;
+flat out float splat_opacity;
 
 void main()
 {
@@ -50,6 +53,7 @@ void main()
     gl_Position.xy += offset_ndc * center_clip.w;
     vertex_color = in_color;
     splat_coordinate = in_corner;
+    splat_opacity = in_opacity;
 }
 )GLSL";
 
@@ -58,15 +62,20 @@ constexpr char kPointFragmentShader[] = R"GLSL(
 
 in vec3 vertex_color;
 in vec2 splat_coordinate;
+flat in float splat_opacity;
 out vec4 fragment_color;
 
 void main()
 {
-    float radius_squared = dot(splat_coordinate, splat_coordinate);
-    if (radius_squared > 1.0)
+    vec2 gaussian_position = splat_coordinate * 3.0;
+    float radius_squared = dot(gaussian_position, gaussian_position);
+    if (radius_squared > 9.0)
         discard;
 
-    fragment_color = vec4(vertex_color, 1.0);
+    float opacity = 1.0 / (1.0 + exp(-splat_opacity));
+    float gaussian_weight = exp(-0.5 * radius_squared);
+    float alpha = opacity * gaussian_weight;
+    fragment_color = vec4(vertex_color * alpha, alpha);
 }
 )GLSL";
 } // namespace
@@ -227,6 +236,12 @@ bool OpenGLWidget::createPointBuffers()
         reinterpret_cast<const void*>(offsetof(GpuSplatData, red)));
     glVertexAttribDivisor(kColorAttribute, 1);
 
+    glEnableVertexAttribArray(kOpacityAttribute);
+    glVertexAttribPointer(
+        kOpacityAttribute, 1, GL_FLOAT, GL_FALSE, sizeof(GpuSplatData),
+        reinterpret_cast<const void*>(offsetof(GpuSplatData, opacity)));
+    glVertexAttribDivisor(kOpacityAttribute, 1);
+
     point_vbo_.release();
     return true;
 }
@@ -359,7 +374,12 @@ void OpenGLWidget::paintGL()
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
     renderGaussianPoints();
+    glDisable(GL_BLEND);
+    glDepthMask(GL_TRUE);
     glDisable(GL_DEPTH_TEST);
 
     QPainter painter(this);
