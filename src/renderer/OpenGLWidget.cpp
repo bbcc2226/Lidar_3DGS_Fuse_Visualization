@@ -28,7 +28,7 @@ constexpr float kQuadCorners[] = {
      1.0f,  1.0f,
 };
 
-constexpr char kPointVertexShader[] = R"GLSL(
+constexpr char kSplatVertexShader[] = R"GLSL(
 #version 330 core
 
 layout(location = 0) in vec2 in_corner;
@@ -57,7 +57,7 @@ void main()
 }
 )GLSL";
 
-constexpr char kPointFragmentShader[] = R"GLSL(
+constexpr char kSplatFragmentShader[] = R"GLSL(
 #version 330 core
 
 in vec3 vertex_color;
@@ -91,14 +91,14 @@ OpenGLWidget::~OpenGLWidget()
 {
     if (context() && context()->isValid()) {
         makeCurrent();
-        destroyPointResources();
+        destroySplatResources();
         doneCurrent();
     }
 }
 
-bool OpenGLWidget::isPointShaderReady() const
+bool OpenGLWidget::isSplatShaderReady() const
 {
-    return point_shader_program_ && point_shader_program_->isLinked();
+    return splat_shader_program_ && splat_shader_program_->isLinked();
 }
 
 void OpenGLWidget::setBackgroundColor(const QColor& color)
@@ -130,7 +130,7 @@ void OpenGLWidget::setGaussianPoints(const std::vector<GaussianPoint>& points)
     // context becomes available.
     if (isValid()) {
         makeCurrent();
-        uploadPointBuffer();
+        uploadSplatBuffer();
         doneCurrent();
     }
     update();
@@ -151,60 +151,60 @@ void OpenGLWidget::initializeGL()
     glEnable(GL_DEPTH_TEST);
     resetCameraMatrices();
 
-    if (createPointBuffers()) {
-        uploadPointBuffer();
+    if (createSplatBuffers()) {
+        uploadSplatBuffer();
     }
-    createPointShaderProgram();
+    createSplatShaderProgram();
 }
 
-bool OpenGLWidget::createPointShaderProgram()
+bool OpenGLWidget::createSplatShaderProgram()
 {
-    point_shader_program_ = std::make_unique<QOpenGLShaderProgram>();
-    if (!point_shader_program_->addShaderFromSourceCode(
-            QOpenGLShader::Vertex, kPointVertexShader)) {
-        qWarning("Gaussian point vertex shader compilation failed: %s",
-                 qPrintable(point_shader_program_->log()));
-        point_shader_program_.reset();
+    splat_shader_program_ = std::make_unique<QOpenGLShaderProgram>();
+    if (!splat_shader_program_->addShaderFromSourceCode(
+            QOpenGLShader::Vertex, kSplatVertexShader)) {
+        qWarning("Gaussian splat vertex shader compilation failed: %s",
+                 qPrintable(splat_shader_program_->log()));
+        splat_shader_program_.reset();
         return false;
     }
 
-    if (!point_shader_program_->addShaderFromSourceCode(
-            QOpenGLShader::Fragment, kPointFragmentShader)) {
-        qWarning("Gaussian point fragment shader compilation failed: %s",
-                 qPrintable(point_shader_program_->log()));
-        point_shader_program_.reset();
+    if (!splat_shader_program_->addShaderFromSourceCode(
+            QOpenGLShader::Fragment, kSplatFragmentShader)) {
+        qWarning("Gaussian splat fragment shader compilation failed: %s",
+                 qPrintable(splat_shader_program_->log()));
+        splat_shader_program_.reset();
         return false;
     }
 
-    if (!point_shader_program_->link()) {
-        qWarning("Gaussian point shader link failed: %s",
-                 qPrintable(point_shader_program_->log()));
-        point_shader_program_.reset();
+    if (!splat_shader_program_->link()) {
+        qWarning("Gaussian splat shader link failed: %s",
+                 qPrintable(splat_shader_program_->log()));
+        splat_shader_program_.reset();
         return false;
     }
 
     return true;
 }
 
-bool OpenGLWidget::createPointBuffers()
+bool OpenGLWidget::createSplatBuffers()
 {
     static_assert(std::is_standard_layout<GpuSplatData>::value,
                   "GpuSplatData must be an interleaved vertex type.");
 
-    if (!point_vao_.isCreated() && !point_vao_.create()) {
-        qWarning("Failed to create Gaussian point VAO.");
+    if (!splat_vao_.isCreated() && !splat_vao_.create()) {
+        qWarning("Failed to create Gaussian splat VAO.");
         return false;
     }
     if (!quad_vbo_.isCreated() && !quad_vbo_.create()) {
         qWarning("Failed to create shared quad VBO.");
         return false;
     }
-    if (!point_vbo_.isCreated() && !point_vbo_.create()) {
-        qWarning("Failed to create Gaussian point VBO.");
+    if (!splat_instance_vbo_.isCreated() && !splat_instance_vbo_.create()) {
+        qWarning("Failed to create Gaussian splat instance VBO.");
         return false;
     }
 
-    QOpenGLVertexArrayObject::Binder vao_binder(&point_vao_);
+    QOpenGLVertexArrayObject::Binder vao_binder(&splat_vao_);
     if (!quad_vbo_.bind()) {
         qWarning("Failed to bind shared quad VBO.");
         return false;
@@ -218,11 +218,11 @@ bool OpenGLWidget::createPointBuffers()
     glVertexAttribDivisor(kCornerAttribute, 0);
     quad_vbo_.release();
 
-    if (!point_vbo_.bind()) {
-        qWarning("Failed to bind Gaussian point VBO.");
+    if (!splat_instance_vbo_.bind()) {
+        qWarning("Failed to bind Gaussian splat instance VBO.");
         return false;
     }
-    point_vbo_.setUsagePattern(QOpenGLBuffer::StaticDraw);
+    splat_instance_vbo_.setUsagePattern(QOpenGLBuffer::StaticDraw);
 
     glEnableVertexAttribArray(kPositionAttribute);
     glVertexAttribPointer(
@@ -242,41 +242,41 @@ bool OpenGLWidget::createPointBuffers()
         reinterpret_cast<const void*>(offsetof(GpuSplatData, opacity)));
     glVertexAttribDivisor(kOpacityAttribute, 1);
 
-    point_vbo_.release();
+    splat_instance_vbo_.release();
     return true;
 }
 
-bool OpenGLWidget::uploadPointBuffer()
+bool OpenGLWidget::uploadSplatBuffer()
 {
-    uploaded_point_count_ = 0;
-    if (!point_vbo_.isCreated()) return false;
+    uploaded_splat_count_ = 0;
+    if (!splat_instance_vbo_.isCreated()) return false;
 
     const std::size_t byte_count =
         gpu_splat_data_.size() * sizeof(GpuSplatData);
     if (byte_count > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
-        qWarning("Gaussian point buffer exceeds QOpenGLBuffer's allocation limit.");
+        qWarning("Gaussian splat buffer exceeds QOpenGLBuffer's allocation limit.");
         return false;
     }
 
-    if (!point_vbo_.bind()) {
-        qWarning("Failed to bind Gaussian point VBO for upload.");
+    if (!splat_instance_vbo_.bind()) {
+        qWarning("Failed to bind Gaussian splat VBO for upload.");
         return false;
     }
-    point_vbo_.allocate(
+    splat_instance_vbo_.allocate(
         gpu_splat_data_.empty() ? nullptr : gpu_splat_data_.data(),
         static_cast<int>(byte_count));
-    point_vbo_.release();
-    uploaded_point_count_ = gpu_splat_data_.size();
+    splat_instance_vbo_.release();
+    uploaded_splat_count_ = gpu_splat_data_.size();
     return true;
 }
 
-void OpenGLWidget::destroyPointResources()
+void OpenGLWidget::destroySplatResources()
 {
-    uploaded_point_count_ = 0;
-    point_shader_program_.reset();
-    point_vbo_.destroy();
+    uploaded_splat_count_ = 0;
+    splat_shader_program_.reset();
+    splat_instance_vbo_.destroy();
     quad_vbo_.destroy();
-    point_vao_.destroy();
+    splat_vao_.destroy();
 }
 
 void OpenGLWidget::resetCameraMatrices()
@@ -325,34 +325,34 @@ void OpenGLWidget::fitPointCloudToView()
     model_matrix_.translate(-center);
 }
 
-void OpenGLWidget::renderGaussianPoints()
+void OpenGLWidget::renderGaussianSplats()
 {
-    if (uploaded_point_count_ == 0 || !isPointShaderReady() ||
-        !point_vao_.isCreated()) {
+    if (uploaded_splat_count_ == 0 || !isSplatShaderReady() ||
+        !splat_vao_.isCreated()) {
         return;
     }
 
-    if (!point_shader_program_->bind()) {
-        qWarning("Failed to bind Gaussian point shader for drawing.");
+    if (!splat_shader_program_->bind()) {
+        qWarning("Failed to bind Gaussian splat shader for drawing.");
         return;
     }
 
     const QMatrix4x4 model_view_projection =
         projection_matrix_ * view_matrix_ * interaction_matrix_ * model_matrix_;
-    point_shader_program_->setUniformValue("u_mvp", model_view_projection);
-    point_shader_program_->setUniformValue(
+    splat_shader_program_->setUniformValue("u_mvp", model_view_projection);
+    splat_shader_program_->setUniformValue(
         "u_viewport_size", QVector2D(width(), height()));
-    point_shader_program_->setUniformValue(
+    splat_shader_program_->setUniformValue(
         "u_square_half_size_pixels", kSquareHalfSizePixels);
 
     {
-        QOpenGLVertexArrayObject::Binder vao_binder(&point_vao_);
+        QOpenGLVertexArrayObject::Binder vao_binder(&splat_vao_);
         glDrawArraysInstanced(
             GL_TRIANGLE_STRIP, 0, 4,
-            static_cast<GLsizei>(uploaded_point_count_));
+            static_cast<GLsizei>(uploaded_splat_count_));
     }
 
-    point_shader_program_->release();
+    splat_shader_program_->release();
 }
 
 void OpenGLWidget::resizeGL(int width, int height)
@@ -377,7 +377,7 @@ void OpenGLWidget::paintGL()
     glDepthMask(GL_FALSE);
     glEnable(GL_BLEND);
     glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-    renderGaussianPoints();
+    renderGaussianSplats();
     glDisable(GL_BLEND);
     glDepthMask(GL_TRUE);
     glDisable(GL_DEPTH_TEST);

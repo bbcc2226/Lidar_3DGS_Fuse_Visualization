@@ -68,7 +68,7 @@ void ViewerController::openPlyFile(QWidget* dialog_parent)
     emit loadStatusChanged(
         QString("Loaded %1 points | uploaded %2 | %3")
             .arg(static_cast<qulonglong>(point_processing_.splatCount()))
-            .arg(static_cast<qulonglong>(viewer_->uploadedPointCount()))
+            .arg(static_cast<qulonglong>(viewer_->uploadedSplatCount()))
             .arg(data_description),
         path);
 }
