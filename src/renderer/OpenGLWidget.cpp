@@ -45,7 +45,7 @@ uniform mat4 u_projection;
 uniform vec2 u_viewport_size;
 uniform float u_fixed_half_size_pixels;
 uniform float u_point_cloud_scale;
-uniform float u_focal_y_pixels;
+uniform vec2 u_focal_pixels;
 uniform bool u_use_trained_scale;
 
 out vec3 vertex_color;
@@ -107,7 +107,16 @@ void main()
 
         vec2 activated_scale = activated_scale_3d.xy;
         float camera_distance = max(-center_view.z, 0.01);
-        vec2 sigma_pixels = u_focal_y_pixels * activated_scale
+        mat3x2 projection_jacobian = mat3x2(
+            vec2(u_focal_pixels.x / camera_distance, 0.0),
+            vec2(0.0, u_focal_pixels.y / camera_distance),
+            vec2(
+                u_focal_pixels.x * center_view.x /
+                    (camera_distance * camera_distance),
+                u_focal_pixels.y * center_view.y /
+                    (camera_distance * camera_distance)));
+
+        vec2 sigma_pixels = u_focal_pixels.y * activated_scale
             * u_point_cloud_scale / camera_distance;
         half_size_pixels = clamp(
             3.0 * sigma_pixels, vec2(1.0), vec2(256.0));
@@ -442,8 +451,10 @@ void OpenGLWidget::renderGaussianSplats()
     splat_shader_program_->setUniformValue(
         "u_point_cloud_scale", point_cloud_scale_);
     splat_shader_program_->setUniformValue(
-        "u_focal_y_pixels",
-        projection_matrix_(1, 1) * static_cast<float>(height()) * 0.5f);
+        "u_focal_pixels",
+        QVector2D(
+            projection_matrix_(0, 0) * static_cast<float>(width()) * 0.5f,
+            projection_matrix_(1, 1) * static_cast<float>(height()) * 0.5f));
     splat_shader_program_->setUniformValue(
         "u_use_trained_scale", has_trained_scale_);
 
