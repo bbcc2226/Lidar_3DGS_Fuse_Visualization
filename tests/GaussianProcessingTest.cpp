@@ -43,6 +43,37 @@ TEST(GaussianProcessingTest, LoadsRawDegreeZeroGaussianParameters)
     EXPECT_EQ(processing.metadata().sh_degree, 0);
 }
 
+TEST(GaussianProcessingTest, PreservesDegreeOneSphericalHarmonicCoefficients)
+{
+    QTemporaryFile file;
+    ASSERT_TRUE(writeText(file,
+        "ply\n"
+        "format ascii 1.0\n"
+        "element vertex 1\n"
+        "property float x\nproperty float y\nproperty float z\n"
+        "property float f_dc_0\nproperty float f_dc_1\nproperty float f_dc_2\n"
+        "property float f_rest_0\nproperty float f_rest_1\n"
+        "property float f_rest_2\nproperty float f_rest_3\n"
+        "property float f_rest_4\nproperty float f_rest_5\n"
+        "property float f_rest_6\nproperty float f_rest_7\n"
+        "property float f_rest_8\n"
+        "end_header\n"
+        "0 0 0 0.1 0.2 0.3 1 2 3 4 5 6 7 8 9\n"));
+
+    GaussianSplatProcessing processing;
+    ASSERT_TRUE(processing.loadPly(file.fileName().toStdString()))
+        << processing.lastError();
+    ASSERT_EQ(processing.points().size(), 1U);
+
+    const GaussianPoint& point = processing.points().front();
+    for (std::size_t coefficient = 0; coefficient < 9; ++coefficient) {
+        EXPECT_FLOAT_EQ(
+            point.sh_rest[coefficient], static_cast<float>(coefficient + 1));
+    }
+    EXPECT_FLOAT_EQ(point.sh_rest[9], 0.0f);
+    EXPECT_EQ(processing.metadata().sh_degree, 1);
+}
+
 TEST(GaussianProcessingTest, RejectsIncompleteScaleGroup)
 {
     QTemporaryFile file;
