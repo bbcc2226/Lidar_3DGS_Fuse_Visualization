@@ -26,7 +26,8 @@ public:
     void setBackgroundColor(const QColor& color);
     void setGaussianPoints(const std::vector<GaussianPoint>& points,
                            bool has_trained_scale = false,
-                           bool has_sh_dc = false);
+                           bool has_sh_dc = false,
+                           int sh_degree = 0);
     void setInteractionTransform(const QMatrix4x4& transform,
                                  float yaw_degrees, float pitch_degrees);
 
@@ -61,6 +62,15 @@ private:
         float sh_dc_r = 0.0f;
         float sh_dc_g = 0.0f;
         float sh_dc_b = 0.0f;
+        float sh_l1_0_r = 0.0f;
+        float sh_l1_0_g = 0.0f;
+        float sh_l1_0_b = 0.0f;
+        float sh_l1_1_r = 0.0f;
+        float sh_l1_1_g = 0.0f;
+        float sh_l1_1_b = 0.0f;
+        float sh_l1_2_r = 0.0f;
+        float sh_l1_2_g = 0.0f;
+        float sh_l1_2_b = 0.0f;
     };
 
     bool createSplatBuffers();
@@ -91,5 +101,6 @@ private:
     float point_cloud_scale_ = 1.0f;
     bool has_trained_scale_ = false;
     bool has_sh_dc_ = false;
+    int sh_degree_ = 0;
     std::size_t uploaded_splat_count_ = 0;
 };

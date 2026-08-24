@@ -62,7 +62,8 @@ void ViewerController::openPlyFile(QWidget* dialog_parent)
 
     const GaussianPlyMetadata& metadata = point_processing_.metadata();
     viewer_->setGaussianPoints(
-        point_processing_.points(), metadata.has_scale, metadata.has_sh_dc);
+        point_processing_.points(), metadata.has_scale, metadata.has_sh_dc,
+        metadata.sh_degree);
     const QString data_description = metadata.isComplete3DGS()
         ? QString("3DGS | SH degree %1").arg(metadata.sh_degree)
         : QString("point cloud");

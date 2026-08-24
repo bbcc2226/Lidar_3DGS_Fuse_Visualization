@@ -22,6 +22,7 @@ constexpr int kOpacityAttribute = 3;
 constexpr int kScaleAttribute = 4;
 constexpr int kRotationAttribute = 5;
 constexpr int kShDcAttribute = 6;
+constexpr int kShL1FirstAttribute = 7;
 constexpr float kFixedSplatHalfSizePixels = 3.0f;
 
 constexpr float kQuadCorners[] = {
@@ -41,6 +42,9 @@ layout(location = 3) in float in_opacity;
 layout(location = 4) in vec3 in_scale;
 layout(location = 5) in vec4 in_rotation;
 layout(location = 6) in vec3 in_sh_dc;
+layout(location = 7) in vec3 in_sh_l1_0;
+layout(location = 8) in vec3 in_sh_l1_1;
+layout(location = 9) in vec3 in_sh_l1_2;
 
 uniform mat4 u_model_view;
 uniform mat4 u_projection;
@@ -49,6 +53,8 @@ uniform float u_fixed_half_size_pixels;
 uniform vec2 u_focal_pixels;
 uniform bool u_use_trained_scale;
 uniform bool u_use_sh_dc;
+uniform int u_sh_degree;
+uniform vec3 u_camera_position_model;
 
 out vec3 vertex_color;
 out vec2 splat_coordinate;
@@ -196,9 +202,20 @@ void main()
     gl_Position = center_clip;
     gl_Position.xy += offset_ndc * center_clip.w;
     const float sh_c0 = 0.2820947918;
-    vertex_color = u_use_sh_dc
-        ? max(vec3(0.5) + sh_c0 * in_sh_dc, vec3(0.0))
-        : in_color;
+    if (u_use_sh_dc) {
+        vec3 evaluated_color = sh_c0 * in_sh_dc;
+        if (u_sh_degree >= 1) {
+            const float sh_c1 = 0.4886025119;
+            vec3 direction = normalize(in_position - u_camera_position_model);
+            evaluated_color +=
+                (-sh_c1 * direction.y) * in_sh_l1_0 +
+                ( sh_c1 * direction.z) * in_sh_l1_1 +
+                (-sh_c1 * direction.x) * in_sh_l1_2;
+        }
+        vertex_color = max(vec3(0.5) + evaluated_color, vec3(0.0));
+    } else {
+        vertex_color = in_color;
+    }
     splat_coordinate = in_corner;
     splat_opacity = in_opacity;
 }
@@ -258,10 +275,11 @@ void OpenGLWidget::setBackgroundColor(const QColor& color)
 
 void OpenGLWidget::setGaussianPoints(
     const std::vector<GaussianPoint>& points, bool has_trained_scale,
-    bool has_sh_dc)
+    bool has_sh_dc, int sh_degree)
 {
     has_trained_scale_ = has_trained_scale;
     has_sh_dc_ = has_sh_dc;
+    sh_degree_ = std::clamp(sh_degree, 0, 3);
     gpu_splat_data_.clear();
     gpu_splat_data_.reserve(points.size());
     for (const GaussianPoint& point : points) {
@@ -283,6 +301,24 @@ void OpenGLWidget::setGaussianPoints(
         gpu_splat.sh_dc_r = point.sh_dc[0];
         gpu_splat.sh_dc_g = point.sh_dc[1];
         gpu_splat.sh_dc_b = point.sh_dc[2];
+        if (sh_degree_ >= 1) {
+            const std::size_t coefficients_per_channel =
+                static_cast<std::size_t>((sh_degree_ + 1) * (sh_degree_ + 1) - 1);
+            const auto coefficient = [&point, coefficients_per_channel](
+                                         std::size_t channel,
+                                         std::size_t basis) {
+                return point.sh_rest[channel * coefficients_per_channel + basis];
+            };
+            gpu_splat.sh_l1_0_r = coefficient(0, 0);
+            gpu_splat.sh_l1_0_g = coefficient(1, 0);
+            gpu_splat.sh_l1_0_b = coefficient(2, 0);
+            gpu_splat.sh_l1_1_r = coefficient(0, 1);
+            gpu_splat.sh_l1_1_g = coefficient(1, 1);
+            gpu_splat.sh_l1_1_b = coefficient(2, 1);
+            gpu_splat.sh_l1_2_r = coefficient(0, 2);
+            gpu_splat.sh_l1_2_g = coefficient(1, 2);
+            gpu_splat.sh_l1_2_b = coefficient(2, 2);
+        }
         gpu_splat_data_.push_back(gpu_splat);
     }
     fitPointCloudToView();
@@ -351,7 +387,7 @@ bool OpenGLWidget::createSplatBuffers()
 {
     static_assert(std::is_standard_layout<GpuSplatData>::value,
                   "GpuSplatData must be an interleaved vertex type.");
-    static_assert(sizeof(GpuSplatData) == 60,
+    static_assert(sizeof(GpuSplatData) == 96,
                   "GpuSplatData layout must match the configured attributes.");
     static_assert(offsetof(GpuSplatData, scale_x) == 20,
                   "GpuSplatData scale offset must remain stable.");
@@ -359,6 +395,8 @@ bool OpenGLWidget::createSplatBuffers()
                   "GpuSplatData rotation offset must remain stable.");
     static_assert(offsetof(GpuSplatData, sh_dc_r) == 48,
                   "GpuSplatData SH DC offset must remain stable.");
+    static_assert(offsetof(GpuSplatData, sh_l1_0_r) == 60,
+                  "GpuSplatData degree-one SH offset must remain stable.");
 
     if (!splat_vao_.isCreated() && !splat_vao_.create()) {
         qWarning("Failed to create Gaussian splat VAO.");
@@ -430,6 +468,17 @@ bool OpenGLWidget::createSplatBuffers()
         kShDcAttribute, 3, GL_FLOAT, GL_FALSE, sizeof(GpuSplatData),
         reinterpret_cast<const void*>(offsetof(GpuSplatData, sh_dc_r)));
     glVertexAttribDivisor(kShDcAttribute, 1);
+
+    for (int basis = 0; basis < 3; ++basis) {
+        const int attribute = kShL1FirstAttribute + basis;
+        glEnableVertexAttribArray(attribute);
+        glVertexAttribPointer(
+            attribute, 3, GL_FLOAT, GL_FALSE, sizeof(GpuSplatData),
+            reinterpret_cast<const void*>(
+                offsetof(GpuSplatData, sh_l1_0_r) +
+                static_cast<std::size_t>(basis) * 3 * sizeof(float)));
+        glVertexAttribDivisor(attribute, 1);
+    }
 
     splat_instance_vbo_.release();
     return true;
@@ -569,6 +618,14 @@ void OpenGLWidget::renderGaussianSplats()
     splat_shader_program_->setUniformValue(
         "u_use_trained_scale", has_trained_scale_);
     splat_shader_program_->setUniformValue("u_use_sh_dc", has_sh_dc_);
+    splat_shader_program_->setUniformValue("u_sh_degree", sh_degree_);
+    bool inverse_ok = false;
+    const QMatrix4x4 inverse_model_view = model_view.inverted(&inverse_ok);
+    const QVector3D camera_position_model = inverse_ok
+        ? inverse_model_view.map(QVector3D(0.0f, 0.0f, 0.0f))
+        : QVector3D(0.0f, 0.0f, 0.0f);
+    splat_shader_program_->setUniformValue(
+        "u_camera_position_model", camera_position_model);
 
     {
         QOpenGLVertexArrayObject::Binder vao_binder(&splat_vao_);
