@@ -167,6 +167,25 @@ void main()
             3.0 * sigma_axes_pixels, vec2(1.0), vec2(256.0));
     }
 
+    vec2 center_ndc = center_clip.xy / center_clip.w;
+    // Convert the rotated quad's half-extents to an axis-aligned screen-space
+    // bound. Cull only when the complete bound is outside the viewport; an
+    // off-screen center can still own an ellipse that overlaps visible pixels.
+    vec2 extent_pixels =
+        abs(major_axis) * half_size_pixels.x +
+        abs(minor_axis) * half_size_pixels.y;
+    vec2 extent_ndc = extent_pixels * 2.0 / u_viewport_size;
+    if (center_ndc.x + extent_ndc.x < -1.0 ||
+        center_ndc.x - extent_ndc.x > 1.0 ||
+        center_ndc.y + extent_ndc.y < -1.0 ||
+        center_ndc.y - extent_ndc.y > 1.0) {
+        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+        vertex_color = in_color;
+        splat_coordinate = in_corner;
+        splat_opacity = 0.0;
+        return;
+    }
+
     vec2 offset_pixels =
         major_axis * in_corner.x * half_size_pixels.x +
         minor_axis * in_corner.y * half_size_pixels.y;
