@@ -118,6 +118,37 @@ void main()
         mat2 covariance_screen = projection_jacobian * covariance_view
             * transpose(projection_jacobian);
 
+        float covariance_xx = covariance_screen[0][0];
+        float covariance_xy = 0.5 *
+            (covariance_screen[0][1] + covariance_screen[1][0]);
+        float covariance_yy = covariance_screen[1][1];
+        float trace = covariance_xx + covariance_yy;
+        float difference = covariance_xx - covariance_yy;
+        float discriminant = sqrt(max(
+            difference * difference +
+                4.0 * covariance_xy * covariance_xy,
+            0.0));
+        vec2 eigenvalues = max(
+            vec2(
+                0.5 * (trace + discriminant),
+                0.5 * (trace - discriminant)),
+            vec2(1.0e-6));
+        vec2 sigma_axes_pixels = sqrt(eigenvalues);
+
+        vec2 major_candidate_a = vec2(
+            covariance_xy, eigenvalues.x - covariance_xx);
+        vec2 major_candidate_b = vec2(
+            eigenvalues.x - covariance_yy, covariance_xy);
+        vec2 major_axis = dot(major_candidate_a, major_candidate_a) >
+                dot(major_candidate_b, major_candidate_b)
+            ? major_candidate_a
+            : major_candidate_b;
+        float major_axis_length_squared = dot(major_axis, major_axis);
+        major_axis = major_axis_length_squared > 1.0e-12
+            ? major_axis * inversesqrt(major_axis_length_squared)
+            : vec2(1.0, 0.0);
+        vec2 minor_axis = vec2(-major_axis.y, major_axis.x);
+
         vec2 sigma_pixels = u_focal_pixels.y * activated_scale
             * u_point_cloud_scale / camera_distance;
         half_size_pixels = clamp(
