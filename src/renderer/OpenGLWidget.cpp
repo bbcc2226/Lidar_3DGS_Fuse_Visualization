@@ -347,7 +347,9 @@ bool OpenGLWidget::createSplatBuffers()
         qWarning("Failed to bind Gaussian splat instance VBO.");
         return false;
     }
-    splat_instance_vbo_.setUsagePattern(QOpenGLBuffer::StaticDraw);
+    // The instance order changes with the camera for back-to-front alpha
+    // compositing, so this buffer is rewritten while interacting with a scene.
+    splat_instance_vbo_.setUsagePattern(QOpenGLBuffer::DynamicDraw);
 
     glEnableVertexAttribArray(kPositionAttribute);
     glVertexAttribPointer(
@@ -405,6 +407,28 @@ bool OpenGLWidget::uploadSplatBuffer()
     splat_instance_vbo_.release();
     uploaded_splat_count_ = gpu_splat_data_.size();
     return true;
+}
+
+bool OpenGLWidget::sortAndUploadSplats(const QMatrix4x4& model_view)
+{
+    // OpenGL view space looks down -Z. More-negative Z values are farther
+    // from the camera and must be blended first.
+    std::stable_sort(
+        gpu_splat_data_.begin(), gpu_splat_data_.end(),
+        [&model_view](const GpuSplatData& left, const GpuSplatData& right) {
+            const float left_view_z =
+                model_view(2, 0) * left.x +
+                model_view(2, 1) * left.y +
+                model_view(2, 2) * left.z +
+                model_view(2, 3);
+            const float right_view_z =
+                model_view(2, 0) * right.x +
+                model_view(2, 1) * right.y +
+                model_view(2, 2) * right.z +
+                model_view(2, 3);
+            return left_view_z < right_view_z;
+        });
+    return uploadSplatBuffer();
 }
 
 void OpenGLWidget::destroySplatResources()
@@ -470,13 +494,17 @@ void OpenGLWidget::renderGaussianSplats()
         return;
     }
 
+    const QMatrix4x4 model_view =
+        view_matrix_ * interaction_matrix_ * model_matrix_;
+    if (!sortAndUploadSplats(model_view)) {
+        qWarning("Failed to upload depth-sorted Gaussian splats.");
+        return;
+    }
+
     if (!splat_shader_program_->bind()) {
         qWarning("Failed to bind Gaussian splat shader for drawing.");
         return;
     }
-
-    const QMatrix4x4 model_view =
-        view_matrix_ * interaction_matrix_ * model_matrix_;
     splat_shader_program_->setUniformValue("u_model_view", model_view);
     splat_shader_program_->setUniformValue("u_projection", projection_matrix_);
     splat_shader_program_->setUniformValue(

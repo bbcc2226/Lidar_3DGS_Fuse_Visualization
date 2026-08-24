@@ -62,6 +62,7 @@ private:
     bool createSplatBuffers();
     bool createSplatShaderProgram();
     bool uploadSplatBuffer();
+    bool sortAndUploadSplats(const QMatrix4x4& model_view);
     void destroySplatResources();
     void resetCameraMatrices();
     void fitPointCloudToView();
