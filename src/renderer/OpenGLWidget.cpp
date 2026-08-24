@@ -60,6 +60,30 @@ vec4 normalizedQuaternion(vec4 raw_quaternion)
         : vec4(1.0, 0.0, 0.0, 0.0);
 }
 
+mat3 rotationMatrixFromQuaternion(vec4 quaternion_wxyz)
+{
+    float w = quaternion_wxyz.x;
+    float x = quaternion_wxyz.y;
+    float y = quaternion_wxyz.z;
+    float z = quaternion_wxyz.w;
+
+    float r00 = 1.0 - 2.0 * (y * y + z * z);
+    float r01 = 2.0 * (x * y - w * z);
+    float r02 = 2.0 * (x * z + w * y);
+    float r10 = 2.0 * (x * y + w * z);
+    float r11 = 1.0 - 2.0 * (x * x + z * z);
+    float r12 = 2.0 * (y * z - w * x);
+    float r20 = 2.0 * (x * z - w * y);
+    float r21 = 2.0 * (y * z + w * x);
+    float r22 = 1.0 - 2.0 * (x * x + y * y);
+
+    // GLSL matrix constructors take columns, not rows.
+    return mat3(
+        vec3(r00, r10, r20),
+        vec3(r01, r11, r21),
+        vec3(r02, r12, r22));
+}
+
 void main()
 {
     vec4 quaternion_wxyz = normalizedQuaternion(in_rotation);
@@ -68,7 +92,17 @@ void main()
 
     vec2 half_size_pixels = vec2(u_fixed_half_size_pixels);
     if (u_use_trained_scale) {
-        vec2 activated_scale = exp(in_scale.xy);
+        vec3 activated_scale_3d = exp(in_scale);
+        vec3 variance = activated_scale_3d * activated_scale_3d;
+        mat3 scale_covariance = mat3(
+            variance.x, 0.0, 0.0,
+            0.0, variance.y, 0.0,
+            0.0, 0.0, variance.z);
+        mat3 rotation = rotationMatrixFromQuaternion(quaternion_wxyz);
+        mat3 covariance_3d =
+            rotation * scale_covariance * transpose(rotation);
+
+        vec2 activated_scale = activated_scale_3d.xy;
         float camera_distance = max(-center_view.z, 0.01);
         vec2 sigma_pixels = u_focal_y_pixels * activated_scale
             * u_point_cloud_scale / camera_distance;
