@@ -87,6 +87,18 @@ void main()
 {
     vec4 quaternion_wxyz = normalizedQuaternion(in_rotation);
     vec4 center_view = u_model_view * vec4(in_position, 1.0);
+
+    // The camera looks down view-space -Z. Reject centers on or behind the
+    // camera instead of clamping their projection depth to a tiny value,
+    // which would otherwise create very large, misplaced splats.
+    if (center_view.z >= -0.01) {
+        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+        vertex_color = in_color;
+        splat_coordinate = in_corner;
+        splat_opacity = 0.0;
+        return;
+    }
+
     vec4 center_clip = u_projection * center_view;
 
     vec2 half_size_pixels = vec2(u_fixed_half_size_pixels);
