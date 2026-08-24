@@ -44,7 +44,6 @@ uniform mat4 u_model_view;
 uniform mat4 u_projection;
 uniform vec2 u_viewport_size;
 uniform float u_fixed_half_size_pixels;
-uniform float u_point_cloud_scale;
 uniform vec2 u_focal_pixels;
 uniform bool u_use_trained_scale;
 
@@ -91,6 +90,8 @@ void main()
     vec4 center_clip = u_projection * center_view;
 
     vec2 half_size_pixels = vec2(u_fixed_half_size_pixels);
+    vec2 major_axis = vec2(1.0, 0.0);
+    vec2 minor_axis = vec2(0.0, 1.0);
     if (u_use_trained_scale) {
         vec3 activated_scale_3d = exp(in_scale);
         vec3 variance = activated_scale_3d * activated_scale_3d;
@@ -105,7 +106,6 @@ void main()
         mat3 covariance_view = model_view_linear * covariance_3d
             * transpose(model_view_linear);
 
-        vec2 activated_scale = activated_scale_3d.xy;
         float camera_distance = max(-center_view.z, 0.01);
         mat3x2 projection_jacobian = mat3x2(
             vec2(u_focal_pixels.x / camera_distance, 0.0),
@@ -139,7 +139,7 @@ void main()
             covariance_xy, eigenvalues.x - covariance_xx);
         vec2 major_candidate_b = vec2(
             eigenvalues.x - covariance_yy, covariance_xy);
-        vec2 major_axis = dot(major_candidate_a, major_candidate_a) >
+        major_axis = dot(major_candidate_a, major_candidate_a) >
                 dot(major_candidate_b, major_candidate_b)
             ? major_candidate_a
             : major_candidate_b;
@@ -147,16 +147,16 @@ void main()
         major_axis = major_axis_length_squared > 1.0e-12
             ? major_axis * inversesqrt(major_axis_length_squared)
             : vec2(1.0, 0.0);
-        vec2 minor_axis = vec2(-major_axis.y, major_axis.x);
+        minor_axis = vec2(-major_axis.y, major_axis.x);
 
-        vec2 sigma_pixels = u_focal_pixels.y * activated_scale
-            * u_point_cloud_scale / camera_distance;
         half_size_pixels = clamp(
-            3.0 * sigma_pixels, vec2(1.0), vec2(256.0));
+            3.0 * sigma_axes_pixels, vec2(1.0), vec2(256.0));
     }
 
-    vec2 offset_ndc = in_corner * half_size_pixels * 2.0
-        / u_viewport_size;
+    vec2 offset_pixels =
+        major_axis * in_corner.x * half_size_pixels.x +
+        minor_axis * in_corner.y * half_size_pixels.y;
+    vec2 offset_ndc = offset_pixels * 2.0 / u_viewport_size;
     gl_Position = center_clip;
     gl_Position.xy += offset_ndc * center_clip.w;
     vertex_color = in_color;
@@ -481,8 +481,6 @@ void OpenGLWidget::renderGaussianSplats()
         "u_viewport_size", QVector2D(width(), height()));
     splat_shader_program_->setUniformValue(
         "u_fixed_half_size_pixels", kFixedSplatHalfSizePixels);
-    splat_shader_program_->setUniformValue(
-        "u_point_cloud_scale", point_cloud_scale_);
     splat_shader_program_->setUniformValue(
         "u_focal_pixels",
         QVector2D(
