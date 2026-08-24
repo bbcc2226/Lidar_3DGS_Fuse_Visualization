@@ -117,6 +117,8 @@ void main()
                     (camera_distance * camera_distance)));
         mat2 covariance_screen = projection_jacobian * covariance_view
             * transpose(projection_jacobian);
+        covariance_screen[0][0] += 0.3;
+        covariance_screen[1][1] += 0.3;
 
         float covariance_xx = covariance_screen[0][0];
         float covariance_xy = 0.5 *
