@@ -115,6 +115,8 @@ void main()
                     (camera_distance * camera_distance),
                 u_focal_pixels.y * center_view.y /
                     (camera_distance * camera_distance)));
+        mat2 covariance_screen = projection_jacobian * covariance_view
+            * transpose(projection_jacobian);
 
         vec2 sigma_pixels = u_focal_pixels.y * activated_scale
             * u_point_cloud_scale / camera_distance;
