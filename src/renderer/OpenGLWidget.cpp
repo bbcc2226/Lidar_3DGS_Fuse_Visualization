@@ -20,6 +20,7 @@ constexpr int kPositionAttribute = 1;
 constexpr int kColorAttribute = 2;
 constexpr int kOpacityAttribute = 3;
 constexpr int kScaleAttribute = 4;
+constexpr int kRotationAttribute = 5;
 constexpr float kFixedSplatHalfSizePixels = 3.0f;
 
 constexpr float kQuadCorners[] = {
@@ -37,6 +38,7 @@ layout(location = 1) in vec3 in_position;
 layout(location = 2) in vec3 in_color;
 layout(location = 3) in float in_opacity;
 layout(location = 4) in vec3 in_scale;
+layout(location = 5) in vec4 in_rotation;
 
 uniform mat4 u_model_view;
 uniform mat4 u_projection;
@@ -50,8 +52,17 @@ out vec3 vertex_color;
 out vec2 splat_coordinate;
 flat out float splat_opacity;
 
+vec4 normalizedQuaternion(vec4 raw_quaternion)
+{
+    float norm_squared = dot(raw_quaternion, raw_quaternion);
+    return norm_squared > 1.0e-12
+        ? raw_quaternion * inversesqrt(norm_squared)
+        : vec4(1.0, 0.0, 0.0, 0.0);
+}
+
 void main()
 {
+    vec4 quaternion_wxyz = normalizedQuaternion(in_rotation);
     vec4 center_view = u_model_view * vec4(in_position, 1.0);
     vec4 center_clip = u_projection * center_view;
 
@@ -145,6 +156,10 @@ void OpenGLWidget::setGaussianPoints(
         gpu_splat.scale_x = point.scale[0];
         gpu_splat.scale_y = point.scale[1];
         gpu_splat.scale_z = point.scale[2];
+        gpu_splat.rotation_w = point.rotation[0];
+        gpu_splat.rotation_x = point.rotation[1];
+        gpu_splat.rotation_y = point.rotation[2];
+        gpu_splat.rotation_z = point.rotation[3];
         gpu_splat_data_.push_back(gpu_splat);
     }
     fitPointCloudToView();
@@ -213,10 +228,12 @@ bool OpenGLWidget::createSplatBuffers()
 {
     static_assert(std::is_standard_layout<GpuSplatData>::value,
                   "GpuSplatData must be an interleaved vertex type.");
-    static_assert(sizeof(GpuSplatData) == 32,
+    static_assert(sizeof(GpuSplatData) == 48,
                   "GpuSplatData layout must match the configured attributes.");
     static_assert(offsetof(GpuSplatData, scale_x) == 20,
                   "GpuSplatData scale offset must remain stable.");
+    static_assert(offsetof(GpuSplatData, rotation_w) == 32,
+                  "GpuSplatData rotation offset must remain stable.");
 
     if (!splat_vao_.isCreated() && !splat_vao_.create()) {
         qWarning("Failed to create Gaussian splat VAO.");
@@ -274,6 +291,12 @@ bool OpenGLWidget::createSplatBuffers()
         kScaleAttribute, 3, GL_FLOAT, GL_FALSE, sizeof(GpuSplatData),
         reinterpret_cast<const void*>(offsetof(GpuSplatData, scale_x)));
     glVertexAttribDivisor(kScaleAttribute, 1);
+
+    glEnableVertexAttribArray(kRotationAttribute);
+    glVertexAttribPointer(
+        kRotationAttribute, 4, GL_FLOAT, GL_FALSE, sizeof(GpuSplatData),
+        reinterpret_cast<const void*>(offsetof(GpuSplatData, rotation_w)));
+    glVertexAttribDivisor(kRotationAttribute, 1);
 
     splat_instance_vbo_.release();
     return true;

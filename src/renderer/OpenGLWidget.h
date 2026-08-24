@@ -53,6 +53,10 @@ private:
         float scale_x = 0.0f;
         float scale_y = 0.0f;
         float scale_z = 0.0f;
+        float rotation_w = 1.0f;
+        float rotation_x = 0.0f;
+        float rotation_y = 0.0f;
+        float rotation_z = 0.0f;
     };
 
     bool createSplatBuffers();
