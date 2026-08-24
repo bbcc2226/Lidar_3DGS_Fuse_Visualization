@@ -55,15 +55,14 @@ void main()
     vec4 center_view = u_model_view * vec4(in_position, 1.0);
     vec4 center_clip = u_projection * center_view;
 
-    float half_size_pixels = u_fixed_half_size_pixels;
+    vec2 half_size_pixels = vec2(u_fixed_half_size_pixels);
     if (u_use_trained_scale) {
-        float mean_log_scale =
-            (in_scale.x + in_scale.y + in_scale.z) / 3.0;
-        float isotropic_scale = exp(mean_log_scale);
+        vec2 activated_scale = exp(in_scale.xy);
         float camera_distance = max(-center_view.z, 0.01);
-        float sigma_pixels = u_focal_y_pixels * isotropic_scale
+        vec2 sigma_pixels = u_focal_y_pixels * activated_scale
             * u_point_cloud_scale / camera_distance;
-        half_size_pixels = clamp(3.0 * sigma_pixels, 1.0, 256.0);
+        half_size_pixels = clamp(
+            3.0 * sigma_pixels, vec2(1.0), vec2(256.0));
     }
 
     vec2 offset_ndc = in_corner * half_size_pixels * 2.0
