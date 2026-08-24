@@ -101,6 +101,9 @@ void main()
         mat3 rotation = rotationMatrixFromQuaternion(quaternion_wxyz);
         mat3 covariance_3d =
             rotation * scale_covariance * transpose(rotation);
+        mat3 model_view_linear = mat3(u_model_view);
+        mat3 covariance_view = model_view_linear * covariance_3d
+            * transpose(model_view_linear);
 
         vec2 activated_scale = activated_scale_3d.xy;
         float camera_distance = max(-center_view.z, 0.01);
