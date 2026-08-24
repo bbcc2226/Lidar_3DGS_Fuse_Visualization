@@ -4,6 +4,7 @@
 #include "ViewerController.h"
 
 #include <QColorDialog>
+#include <QCheckBox>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -47,9 +48,21 @@ MainWindow::MainWindow(QWidget* parent)
     panel_layout->addSpacing(12);
 
     auto* reset_button = new QPushButton("Reset view", panel);
+    auto* align_floor_button = new QPushButton("Align floor: 3 points", panel);
+    floor_alignment_label_ = new QLabel("Floor alignment not set", panel);
+    floor_alignment_label_->setWordWrap(true);
+    auto* constrained_rotation = new QCheckBox(
+        "Z-up constrained rotation", panel);
+    constrained_rotation->setToolTip(
+        "Reset to a level Z-up view; clear horizontal drags turn around and "
+        "clear vertical drags look up or down. Up/Down arrow keys change "
+        "camera height.");
     auto* background_button = new QPushButton("Background color...", panel);
     orientation_label_ = new QLabel("Yaw: 0.0 | Pitch: 0.0 degrees", panel);
     panel_layout->addWidget(reset_button);
+    panel_layout->addWidget(align_floor_button);
+    panel_layout->addWidget(floor_alignment_label_);
+    panel_layout->addWidget(constrained_rotation);
     panel_layout->addWidget(background_button);
     panel_layout->addSpacing(12);
     panel_layout->addWidget(orientation_label_);
@@ -67,6 +80,10 @@ MainWindow::MainWindow(QWidget* parent)
             this, [this]() { viewer_controller_->openPlyFile(this); });
     connect(reset_button, &QPushButton::clicked,
             viewer_controller_, &ViewerController::resetView);
+    connect(align_floor_button, &QPushButton::clicked,
+            viewer_controller_, &ViewerController::beginFloorAlignment);
+    connect(constrained_rotation, &QCheckBox::toggled,
+            viewer_controller_, &ViewerController::setConstrainedZUpNavigation);
     connect(background_button, &QPushButton::clicked, this, [this]() {
         const QColor color = QColorDialog::getColor(QColor(25, 30, 42), this,
                                                      "Choose viewport background");
@@ -84,4 +101,6 @@ MainWindow::MainWindow(QWidget* parent)
         load_status_label_->setText(text);
         load_status_label_->setToolTip(path);
     });
+    connect(viewer_controller_, &ViewerController::floorAlignmentStatusChanged,
+            floor_alignment_label_, &QLabel::setText);
 }

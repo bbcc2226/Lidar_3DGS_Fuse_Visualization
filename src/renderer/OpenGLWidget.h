@@ -10,6 +10,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "3dgsProcessing.h"
@@ -30,8 +31,17 @@ public:
                            int sh_degree = 0);
     void setInteractionTransform(const QMatrix4x4& transform,
                                  float yaw_degrees, float pitch_degrees);
+    void setZUpGizmo(bool enabled);
+    void finalizeInteractionSort();
+    std::optional<QVector3D> pickGaussianAt(const QPoint& position) const;
+    bool alignFloorFromPoints(const std::vector<QVector3D>& points);
+    void clearFloorAlignment();
+    void setFloorSelectionPoints(const std::vector<QVector3D>& points);
 
-    std::size_t uploadedSplatCount() const { return uploaded_splat_count_; }
+    std::size_t uploadedSplatCount() const
+    {
+        return source_gpu_splat_data_.size();
+    }
     bool isSplatShaderReady() const;
 
 protected:
@@ -87,8 +97,13 @@ private:
     QOpenGLBuffer quad_vbo_{QOpenGLBuffer::VertexBuffer};
     QOpenGLBuffer splat_instance_vbo_{QOpenGLBuffer::VertexBuffer};
     std::unique_ptr<QOpenGLShaderProgram> splat_shader_program_;
+    std::vector<GpuSplatData> source_gpu_splat_data_;
     std::vector<GpuSplatData> gpu_splat_data_;
+    std::vector<std::uint32_t> splat_sort_indices_;
+    std::vector<std::uint32_t> splat_sort_scratch_;
+    std::vector<float> splat_sort_depths_;
     QMatrix4x4 model_matrix_;
+    QMatrix4x4 scene_alignment_matrix_;
     QMatrix4x4 view_matrix_;
     QMatrix4x4 projection_matrix_;
     QMatrix4x4 interaction_matrix_;
@@ -102,5 +117,10 @@ private:
     bool has_trained_scale_ = false;
     bool has_sh_dc_ = false;
     int sh_degree_ = 0;
+    bool z_up_gizmo_ = false;
+    bool splat_sort_dirty_ = true;
+    QVector3D last_sort_depth_direction_;
+    std::vector<QVector3D> floor_selection_points_;
+    std::size_t allocated_splat_bytes_ = 0;
     std::size_t uploaded_splat_count_ = 0;
 };

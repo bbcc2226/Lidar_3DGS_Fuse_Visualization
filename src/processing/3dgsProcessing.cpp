@@ -384,7 +384,7 @@ bool GaussianSplatProcessing::loadPly(const std::string& path)
 
 void GaussianSplatProcessing::clear()
 {
-    points_.clear();
+    std::vector<GaussianPoint>().swap(points_);
     metadata_ = {};
     last_error_.clear();
 }

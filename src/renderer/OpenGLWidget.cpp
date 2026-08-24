@@ -6,11 +6,15 @@
 #include <QOpenGLShader>
 #include <QOpenGLShaderProgram>
 #include <QPainter>
+#include <QQuaternion>
 #include <QVector2D>
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
+#include <cstring>
 #include <limits>
+#include <numeric>
 #include <type_traits>
 
 namespace
@@ -24,6 +28,7 @@ constexpr int kRotationAttribute = 5;
 constexpr int kShDcAttribute = 6;
 constexpr int kShL1FirstAttribute = 7;
 constexpr float kFixedSplatHalfSizePixels = 3.0f;
+constexpr float kInteractiveSortAngleDegrees = 0.75f;
 
 constexpr float kQuadCorners[] = {
     -1.0f, -1.0f,
@@ -227,6 +232,7 @@ constexpr char kSplatFragmentShader[] = R"GLSL(
 in vec3 vertex_color;
 in vec2 splat_coordinate;
 flat in float splat_opacity;
+uniform float u_alpha_density_scale;
 out vec4 fragment_color;
 
 void main()
@@ -238,7 +244,11 @@ void main()
 
     float opacity = 1.0 / (1.0 + exp(-splat_opacity));
     float gaussian_weight = exp(-0.5 * radius_squared);
-    float alpha = opacity * gaussian_weight;
+    float base_alpha = clamp(opacity * gaussian_weight, 0.0, 0.999);
+    // A low-detail interaction frame keeps one of every four splats. Treat
+    // each retained alpha sample as representative of the omitted density so
+    // the preview does not become four times darker.
+    float alpha = 1.0 - pow(1.0 - base_alpha, u_alpha_density_scale);
     fragment_color = vec4(vertex_color * alpha, alpha);
 }
 )GLSL";
@@ -247,6 +257,7 @@ void main()
 OpenGLWidget::OpenGLWidget(QWidget* parent)
     : QOpenGLWidget(parent)
 {
+    scene_alignment_matrix_.setToIdentity();
     setMinimumSize(640, 480);
     setFocusPolicy(Qt::StrongFocus);
 }
@@ -280,8 +291,9 @@ void OpenGLWidget::setGaussianPoints(
     has_trained_scale_ = has_trained_scale;
     has_sh_dc_ = has_sh_dc;
     sh_degree_ = std::clamp(sh_degree, 0, 3);
-    gpu_splat_data_.clear();
-    gpu_splat_data_.reserve(points.size());
+    std::vector<GpuSplatData>().swap(source_gpu_splat_data_);
+    source_gpu_splat_data_.reserve(points.size());
+    std::vector<GpuSplatData>().swap(gpu_splat_data_);
     for (const GaussianPoint& point : points) {
         GpuSplatData gpu_splat;
         gpu_splat.x = point.x;
@@ -319,13 +331,19 @@ void OpenGLWidget::setGaussianPoints(
             gpu_splat.sh_l1_2_g = coefficient(1, 2);
             gpu_splat.sh_l1_2_b = coefficient(2, 2);
         }
-        gpu_splat_data_.push_back(gpu_splat);
+        source_gpu_splat_data_.push_back(gpu_splat);
     }
+    splat_sort_indices_.resize(points.size());
+    splat_sort_scratch_.resize(points.size());
+    std::iota(splat_sort_indices_.begin(), splat_sort_indices_.end(), 0U);
+    splat_sort_depths_.resize(points.size());
+    splat_sort_dirty_ = true;
     fitPointCloudToView();
 
     // Calls made before initializeGL() are retained and uploaded when the
     // context becomes available.
-    if (isValid()) {
+    uploaded_splat_count_ = 0;
+    if (points.empty() && isValid()) {
         makeCurrent();
         uploadSplatBuffer();
         doneCurrent();
@@ -339,6 +357,87 @@ void OpenGLWidget::setInteractionTransform(
     interaction_matrix_ = transform;
     yaw_degrees_ = yaw_degrees;
     pitch_degrees_ = pitch_degrees;
+    update();
+}
+
+void OpenGLWidget::setZUpGizmo(bool enabled)
+{
+    z_up_gizmo_ = enabled;
+    update();
+}
+
+void OpenGLWidget::finalizeInteractionSort()
+{
+    splat_sort_dirty_ = true;
+    update();
+}
+
+std::optional<QVector3D> OpenGLWidget::pickGaussianAt(
+    const QPoint& position) const
+{
+    if (source_gpu_splat_data_.empty() || width() <= 0 || height() <= 0) {
+        return std::nullopt;
+    }
+
+    const QMatrix4x4 model_view =
+        view_matrix_ * interaction_matrix_ * scene_alignment_matrix_ *
+        model_matrix_;
+    constexpr float kPickRadiusPixels = 12.0f;
+    float best_distance_squared = kPickRadiusPixels * kPickRadiusPixels;
+    std::optional<QVector3D> best_point;
+    for (const GpuSplatData& splat : source_gpu_splat_data_) {
+        const QVector3D raw_position(splat.x, splat.y, splat.z);
+        const QVector4D view_position =
+            model_view * QVector4D(raw_position, 1.0f);
+        if (view_position.z() >= -0.01f) continue;
+        const QVector4D clip_position = projection_matrix_ * view_position;
+        if (clip_position.w() <= 0.0f) continue;
+        const float inverse_w = 1.0f / clip_position.w();
+        const QPointF screen_position(
+            (clip_position.x() * inverse_w * 0.5f + 0.5f) * width(),
+            (0.5f - clip_position.y() * inverse_w * 0.5f) * height());
+        const float dx = static_cast<float>(screen_position.x() - position.x());
+        const float dy = static_cast<float>(screen_position.y() - position.y());
+        const float distance_squared = dx * dx + dy * dy;
+        if (distance_squared < best_distance_squared) {
+            best_distance_squared = distance_squared;
+            best_point = model_matrix_.map(raw_position);
+        }
+    }
+    return best_point;
+}
+
+bool OpenGLWidget::alignFloorFromPoints(
+    const std::vector<QVector3D>& points)
+{
+    if (points.size() != 3) return false;
+    QVector3D normal = QVector3D::crossProduct(
+        points[1] - points[0], points[2] - points[0]);
+    if (normal.lengthSquared() < 1.0e-10f) return false;
+    normal.normalize();
+    if (normal.z() < 0.0f) normal = -normal;
+
+    scene_alignment_matrix_.setToIdentity();
+    scene_alignment_matrix_.rotate(QQuaternion::rotationTo(
+        normal, QVector3D(0.0f, 0.0f, 1.0f)));
+    floor_selection_points_ = points;
+    splat_sort_dirty_ = true;
+    update();
+    return true;
+}
+
+void OpenGLWidget::clearFloorAlignment()
+{
+    scene_alignment_matrix_.setToIdentity();
+    floor_selection_points_.clear();
+    splat_sort_dirty_ = true;
+    update();
+}
+
+void OpenGLWidget::setFloorSelectionPoints(
+    const std::vector<QVector3D>& points)
+{
+    floor_selection_points_ = points;
     update();
 }
 
@@ -500,9 +599,18 @@ bool OpenGLWidget::uploadSplatBuffer()
         qWarning("Failed to bind Gaussian splat VBO for upload.");
         return false;
     }
-    splat_instance_vbo_.allocate(
-        gpu_splat_data_.empty() ? nullptr : gpu_splat_data_.data(),
-        static_cast<int>(byte_count));
+    if (byte_count == allocated_splat_bytes_ && byte_count > 0) {
+        // Preserve the existing GPU allocation while only its sorted contents
+        // change. Reallocating a large buffer on every mouse event can cause
+        // driver stalls and transient GPU-memory exhaustion.
+        splat_instance_vbo_.write(
+            0, gpu_splat_data_.data(), static_cast<int>(byte_count));
+    } else {
+        splat_instance_vbo_.allocate(
+            gpu_splat_data_.empty() ? nullptr : gpu_splat_data_.data(),
+            static_cast<int>(byte_count));
+        allocated_splat_bytes_ = byte_count;
+    }
     splat_instance_vbo_.release();
     uploaded_splat_count_ = gpu_splat_data_.size();
     return true;
@@ -510,29 +618,83 @@ bool OpenGLWidget::uploadSplatBuffer()
 
 bool OpenGLWidget::sortAndUploadSplats(const QMatrix4x4& model_view)
 {
+    const QVector3D depth_direction = QVector3D(
+        model_view(2, 0), model_view(2, 1), model_view(2, 2)).normalized();
+    // Translation adds the same value to every depth and cannot change their
+    // order. Avoid sorting and uploading while the user only pans or dollies.
+    const float sort_angle_radians =
+        kInteractiveSortAngleDegrees * 3.14159265f / 180.0f;
+    const float direction_threshold_squared =
+        2.0f - 2.0f * std::cos(sort_angle_radians);
+    if (!splat_sort_dirty_ &&
+        (depth_direction - last_sort_depth_direction_).lengthSquared() <
+            direction_threshold_squared) {
+        return true;
+    }
+
     // OpenGL view space looks down -Z. More-negative Z values are farther
-    // from the camera and must be blended first.
-    std::stable_sort(
-        gpu_splat_data_.begin(), gpu_splat_data_.end(),
-        [&model_view](const GpuSplatData& left, const GpuSplatData& right) {
-            const float left_view_z =
-                model_view(2, 0) * left.x +
-                model_view(2, 1) * left.y +
-                model_view(2, 2) * left.z +
-                model_view(2, 3);
-            const float right_view_z =
-                model_view(2, 0) * right.x +
-                model_view(2, 1) * right.y +
-                model_view(2, 2) * right.z +
-                model_view(2, 3);
-            return left_view_z < right_view_z;
-        });
-    return uploadSplatBuffer();
+    // from the camera and must be blended first. Compute each transformed
+    // depth once, then sort 32-bit indices instead of moving 96-byte records.
+    const float depth_x = model_view(2, 0);
+    const float depth_y = model_view(2, 1);
+    const float depth_z = model_view(2, 2);
+    const float depth_offset = model_view(2, 3);
+    const std::size_t sorted_count = source_gpu_splat_data_.size();
+    splat_sort_indices_.resize(sorted_count);
+    gpu_splat_data_.resize(sorted_count);
+    for (std::size_t sorted_index = 0;
+         sorted_index < sorted_count; ++sorted_index) {
+        const std::size_t index = sorted_index;
+        splat_sort_indices_[sorted_index] = static_cast<std::uint32_t>(index);
+        const GpuSplatData& splat = source_gpu_splat_data_[index];
+        splat_sort_depths_[index] =
+            depth_x * splat.x + depth_y * splat.y +
+            depth_z * splat.z + depth_offset;
+    }
+
+    const auto depth_key = [this](std::uint32_t index) {
+        std::uint32_t bits = 0;
+        static_assert(sizeof(bits) == sizeof(float));
+        std::memcpy(&bits, &splat_sort_depths_[index], sizeof(bits));
+        const std::uint32_t sign_mask = static_cast<std::uint32_t>(
+            -static_cast<std::int32_t>(bits >> 31));
+        return bits ^ (sign_mask | 0x80000000U);
+    };
+    splat_sort_scratch_.resize(sorted_count);
+    for (unsigned pass = 0; pass < 4; ++pass) {
+        std::array<std::size_t, 256> offsets{};
+        const unsigned shift = pass * 8;
+        for (std::uint32_t index : splat_sort_indices_) {
+            ++offsets[(depth_key(index) >> shift) & 0xffU];
+        }
+        std::size_t running_offset = 0;
+        for (std::size_t& offset : offsets) {
+            const std::size_t count = offset;
+            offset = running_offset;
+            running_offset += count;
+        }
+        for (std::uint32_t index : splat_sort_indices_) {
+            const std::uint32_t byte = (depth_key(index) >> shift) & 0xffU;
+            splat_sort_scratch_[offsets[byte]++] = index;
+        }
+        splat_sort_indices_.swap(splat_sort_scratch_);
+    }
+    for (std::size_t destination = 0;
+         destination < splat_sort_indices_.size(); ++destination) {
+        gpu_splat_data_[destination] =
+            source_gpu_splat_data_[splat_sort_indices_[destination]];
+    }
+
+    if (!uploadSplatBuffer()) return false;
+    last_sort_depth_direction_ = depth_direction;
+    splat_sort_dirty_ = false;
+    return true;
 }
 
 void OpenGLWidget::destroySplatResources()
 {
     uploaded_splat_count_ = 0;
+    allocated_splat_bytes_ = 0;
     splat_shader_program_.reset();
     splat_instance_vbo_.destroy();
     quad_vbo_.destroy();
@@ -551,15 +713,15 @@ void OpenGLWidget::fitPointCloudToView()
 {
     model_matrix_.setToIdentity();
     point_cloud_scale_ = 1.0f;
-    if (gpu_splat_data_.empty()) return;
+    if (source_gpu_splat_data_.empty()) return;
 
     QVector3D minimum(
-        gpu_splat_data_.front().x,
-        gpu_splat_data_.front().y,
-        gpu_splat_data_.front().z);
+        source_gpu_splat_data_.front().x,
+        source_gpu_splat_data_.front().y,
+        source_gpu_splat_data_.front().z);
     QVector3D maximum = minimum;
 
-    for (const GpuSplatData& point : gpu_splat_data_) {
+    for (const GpuSplatData& point : source_gpu_splat_data_) {
         minimum.setX(std::min(minimum.x(), point.x));
         minimum.setY(std::min(minimum.y(), point.y));
         minimum.setZ(std::min(minimum.z(), point.z));
@@ -588,13 +750,14 @@ void OpenGLWidget::fitPointCloudToView()
 
 void OpenGLWidget::renderGaussianSplats()
 {
-    if (uploaded_splat_count_ == 0 || !isSplatShaderReady() ||
+    if (source_gpu_splat_data_.empty() || !isSplatShaderReady() ||
         !splat_vao_.isCreated()) {
         return;
     }
 
     const QMatrix4x4 model_view =
-        view_matrix_ * interaction_matrix_ * model_matrix_;
+        view_matrix_ * interaction_matrix_ * scene_alignment_matrix_ *
+        model_matrix_;
     if (!sortAndUploadSplats(model_view)) {
         qWarning("Failed to upload depth-sorted Gaussian splats.");
         return;
@@ -619,6 +782,7 @@ void OpenGLWidget::renderGaussianSplats()
         "u_use_trained_scale", has_trained_scale_);
     splat_shader_program_->setUniformValue("u_use_sh_dc", has_sh_dc_);
     splat_shader_program_->setUniformValue("u_sh_degree", sh_degree_);
+    splat_shader_program_->setUniformValue("u_alpha_density_scale", 1.0f);
     bool inverse_ok = false;
     const QMatrix4x4 inverse_model_view = model_view.inverted(&inverse_ok);
     const QVector3D camera_position_model = inverse_ok
@@ -668,7 +832,24 @@ void OpenGLWidget::paintGL()
     painter.setRenderHint(QPainter::Antialiasing);
 
     paintDemoScene(painter);
-    OrientationGizmo::paint(painter, size(), yaw_degrees_, pitch_degrees_);
+    const QMatrix4x4 marker_mvp =
+        projection_matrix_ * view_matrix_ * interaction_matrix_ *
+        scene_alignment_matrix_;
+    painter.setPen(QPen(QColor(255, 255, 255), 2.0f));
+    painter.setBrush(QColor(250, 204, 21, 220));
+    for (std::size_t index = 0; index < floor_selection_points_.size(); ++index) {
+        const QVector4D clip = marker_mvp *
+            QVector4D(floor_selection_points_[index], 1.0f);
+        if (clip.w() <= 0.0f) continue;
+        const QPointF screen(
+            (clip.x() / clip.w() * 0.5f + 0.5f) * width(),
+            (0.5f - clip.y() / clip.w() * 0.5f) * height());
+        painter.drawEllipse(screen, 7.0, 7.0);
+        painter.drawText(screen + QPointF(10.0, -8.0),
+                         QString::number(index + 1));
+    }
+    OrientationGizmo::paint(
+        painter, size(), yaw_degrees_, pitch_degrees_, z_up_gizmo_);
 }
 
 void OpenGLWidget::paintDemoScene(QPainter& painter)

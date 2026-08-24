@@ -16,4 +16,5 @@ private:
     ViewerController* viewer_controller_ = nullptr;
     QLabel* orientation_label_ = nullptr;
     QLabel* load_status_label_ = nullptr;
+    QLabel* floor_alignment_label_ = nullptr;
 };

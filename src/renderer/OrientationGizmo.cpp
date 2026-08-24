@@ -32,19 +32,25 @@ QPointF gizmoCenter(const QSize& viewport)
 }
 
 std::array<ProjectedAxis, 3> projectedAxes(
-    const QSize& viewport, float yaw_degrees, float pitch_degrees)
+    const QSize& viewport, float yaw_degrees, float pitch_degrees, bool z_up)
 {
     QMatrix4x4 rotation;
     rotation.rotate(pitch_degrees, 1.0f, 0.0f, 0.0f);
-    rotation.rotate(yaw_degrees, 0.0f, 1.0f, 0.0f);
+    if (z_up) {
+        rotation.rotate(-90.0f, 1.0f, 0.0f, 0.0f);
+        rotation.rotate(yaw_degrees, 0.0f, 0.0f, 1.0f);
+    } else {
+        rotation.rotate(yaw_degrees, 0.0f, 1.0f, 0.0f);
+    }
 
     const QPointF center = gizmoCenter(viewport);
     const auto project = [center](const QVector3D& direction) {
-        // A small depth contribution keeps an axis clickable when it points
-        // directly toward or away from the camera.
+        // Use a true orthographic screen projection. Adding depth to the
+        // screen coordinates made the world-up axis appear to lean sideways
+        // during pitch, which incorrectly suggested camera roll.
         return center + QPointF(
-            (direction.x() - direction.z() * 0.32f) * kRadius,
-            (-direction.y() + direction.z() * 0.32f) * kRadius);
+            direction.x() * kRadius,
+            -direction.y() * kRadius);
     };
 
     const QVector3D x = rotation.mapVector({1.0f, 0.0f, 0.0f});
@@ -59,10 +65,10 @@ std::array<ProjectedAxis, 3> projectedAxes(
 } // namespace
 
 void OrientationGizmo::paint(QPainter& painter, const QSize& viewport,
-                             float yaw_degrees, float pitch_degrees)
+                             float yaw_degrees, float pitch_degrees, bool z_up)
 {
     const QPointF center = gizmoCenter(viewport);
-    auto axes = projectedAxes(viewport, yaw_degrees, pitch_degrees);
+    auto axes = projectedAxes(viewport, yaw_degrees, pitch_degrees, z_up);
     std::sort(axes.begin(), axes.end(), [](const auto& left, const auto& right) {
         return left.depth < right.depth;
     });
@@ -93,9 +99,10 @@ void OrientationGizmo::paint(QPainter& painter, const QSize& viewport,
 
 OrientationGizmo::Axis OrientationGizmo::hitTest(
     const QPoint& position, const QSize& viewport,
-    float yaw_degrees, float pitch_degrees)
+    float yaw_degrees, float pitch_degrees, bool z_up)
 {
-    const auto axes = projectedAxes(viewport, yaw_degrees, pitch_degrees);
+    const auto axes = projectedAxes(
+        viewport, yaw_degrees, pitch_degrees, z_up);
     Axis closest_axis = Axis::None;
     qreal closest_distance = kHitRadius;
     for (const ProjectedAxis& axis : axes) {
