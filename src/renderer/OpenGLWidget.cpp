@@ -20,7 +20,7 @@ constexpr int kPositionAttribute = 1;
 constexpr int kColorAttribute = 2;
 constexpr int kOpacityAttribute = 3;
 constexpr int kScaleAttribute = 4;
-constexpr float kSquareHalfSizePixels = 3.0f;
+constexpr float kFixedSplatHalfSizePixels = 3.0f;
 
 constexpr float kQuadCorners[] = {
     -1.0f, -1.0f,
@@ -38,9 +38,13 @@ layout(location = 2) in vec3 in_color;
 layout(location = 3) in float in_opacity;
 layout(location = 4) in vec3 in_scale;
 
-uniform mat4 u_mvp;
+uniform mat4 u_model_view;
+uniform mat4 u_projection;
 uniform vec2 u_viewport_size;
-uniform float u_square_half_size_pixels;
+uniform float u_fixed_half_size_pixels;
+uniform float u_point_cloud_scale;
+uniform float u_focal_y_pixels;
+uniform bool u_use_trained_scale;
 
 out vec3 vertex_color;
 out vec2 splat_coordinate;
@@ -48,8 +52,21 @@ flat out float splat_opacity;
 
 void main()
 {
-    vec4 center_clip = u_mvp * vec4(in_position, 1.0);
-    vec2 offset_ndc = in_corner * u_square_half_size_pixels * 2.0
+    vec4 center_view = u_model_view * vec4(in_position, 1.0);
+    vec4 center_clip = u_projection * center_view;
+
+    float half_size_pixels = u_fixed_half_size_pixels;
+    if (u_use_trained_scale) {
+        float mean_log_scale =
+            (in_scale.x + in_scale.y + in_scale.z) / 3.0;
+        float isotropic_scale = exp(mean_log_scale);
+        float camera_distance = max(-center_view.z, 0.01);
+        float sigma_pixels = u_focal_y_pixels * isotropic_scale
+            * u_point_cloud_scale / camera_distance;
+        half_size_pixels = clamp(3.0 * sigma_pixels, 1.0, 256.0);
+    }
+
+    vec2 offset_ndc = in_corner * half_size_pixels * 2.0
         / u_viewport_size;
     gl_Position = center_clip;
     gl_Position.xy += offset_ndc * center_clip.w;
@@ -111,8 +128,10 @@ void OpenGLWidget::setBackgroundColor(const QColor& color)
     }
 }
 
-void OpenGLWidget::setGaussianPoints(const std::vector<GaussianPoint>& points)
+void OpenGLWidget::setGaussianPoints(
+    const std::vector<GaussianPoint>& points, bool has_trained_scale)
 {
+    has_trained_scale_ = has_trained_scale;
     gpu_splat_data_.clear();
     gpu_splat_data_.reserve(points.size());
     for (const GaussianPoint& point : points) {
@@ -305,6 +324,7 @@ void OpenGLWidget::resetCameraMatrices()
 void OpenGLWidget::fitPointCloudToView()
 {
     model_matrix_.setToIdentity();
+    point_cloud_scale_ = 1.0f;
     if (gpu_splat_data_.empty()) return;
 
     QVector3D minimum(
@@ -330,13 +350,13 @@ void OpenGLWidget::fitPointCloudToView()
     // keeps points away from the viewport edges with the default camera/FOV.
     constexpr float kTargetExtent = 1.6f;
     constexpr float kMinimumExtent = 1.0e-6f;
-    const float scale = largest_extent > kMinimumExtent
+    point_cloud_scale_ = largest_extent > kMinimumExtent
         ? kTargetExtent / largest_extent
         : 1.0f;
 
     // QMatrix4x4 post-multiplies these operations, producing Scale *
     // Translation. A point is therefore centered first and scaled second.
-    model_matrix_.scale(scale);
+    model_matrix_.scale(point_cloud_scale_);
     model_matrix_.translate(-center);
 }
 
@@ -352,13 +372,21 @@ void OpenGLWidget::renderGaussianSplats()
         return;
     }
 
-    const QMatrix4x4 model_view_projection =
-        projection_matrix_ * view_matrix_ * interaction_matrix_ * model_matrix_;
-    splat_shader_program_->setUniformValue("u_mvp", model_view_projection);
+    const QMatrix4x4 model_view =
+        view_matrix_ * interaction_matrix_ * model_matrix_;
+    splat_shader_program_->setUniformValue("u_model_view", model_view);
+    splat_shader_program_->setUniformValue("u_projection", projection_matrix_);
     splat_shader_program_->setUniformValue(
         "u_viewport_size", QVector2D(width(), height()));
     splat_shader_program_->setUniformValue(
-        "u_square_half_size_pixels", kSquareHalfSizePixels);
+        "u_fixed_half_size_pixels", kFixedSplatHalfSizePixels);
+    splat_shader_program_->setUniformValue(
+        "u_point_cloud_scale", point_cloud_scale_);
+    splat_shader_program_->setUniformValue(
+        "u_focal_y_pixels",
+        projection_matrix_(1, 1) * static_cast<float>(height()) * 0.5f);
+    splat_shader_program_->setUniformValue(
+        "u_use_trained_scale", has_trained_scale_);
 
     {
         QOpenGLVertexArrayObject::Binder vao_binder(&splat_vao_);

@@ -24,7 +24,8 @@ public:
     ~OpenGLWidget() override;
 
     void setBackgroundColor(const QColor& color);
-    void setGaussianPoints(const std::vector<GaussianPoint>& points);
+    void setGaussianPoints(const std::vector<GaussianPoint>& points,
+                           bool has_trained_scale = false);
     void setInteractionTransform(const QMatrix4x4& transform,
                                  float yaw_degrees, float pitch_degrees);
 
@@ -78,5 +79,7 @@ private:
     QColor background_color_{25, 30, 42};
     float yaw_degrees_ = 0.0f;
     float pitch_degrees_ = 0.0f;
+    float point_cloud_scale_ = 1.0f;
+    bool has_trained_scale_ = false;
     std::size_t uploaded_splat_count_ = 0;
 };
