@@ -18,7 +18,7 @@ find_package(Eigen3 REQUIRED)
 find_package(GTest REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(nlohmann_json REQUIRED)
-find_package(TBB REQUIRED)
+find_package(TBB REQUIREfind_package(Threads REQUIRED)
 find_package(Qt5 5.12 REQUIRED COMPONENTS Core Gui Widgets OpenGL)
 
 file(GLOB_RECURSE PROJECT_SOURCES CONFIGURE_DEPENDS
@@ -101,6 +101,7 @@ target_include_directories(${PROJECT_NAME}_qt_viewer
 
 target_link_libraries(${PROJECT_NAME}_qt_viewer
         PRIVATE
+        Threads::Threads
         Qt5::Core
         Qt5::Gui
         Qt5::Widgets
