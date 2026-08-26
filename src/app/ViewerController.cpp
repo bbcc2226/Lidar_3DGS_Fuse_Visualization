@@ -20,9 +20,11 @@ namespace
 constexpr float kRotationDegreesPerPixel = 0.5f;
 constexpr float kConstrainedRotationDegreesPerPixel = 0.15f;
 constexpr float kInitialCameraDistance = 3.0f;
+constexpr float kNavigateInitialCameraDistance = 0.65f;
 constexpr float kMinimumCameraDistance = 0.02f;
 constexpr float kMaximumCameraDistance = 100.0f;
-constexpr float kDollyFactor = 0.85f;
+constexpr float kDollyFactorPerWheelStep = 0.72f;
+constexpr float kPanSensitivity = 1.75f;
 constexpr float kHalfVerticalFieldOfViewRadians = 22.5f * 3.14159265f / 180.0f;
 constexpr int kConstrainedDragThresholdPixels = 6;
 constexpr float kVerticalMoveFraction = 0.05f;
@@ -73,6 +75,10 @@ void ViewerController::openPlyFile(QWidget* dialog_parent)
     viewer_->setGaussianPoints(
         point_processing_.points(), metadata.has_scale, metadata.has_sh_dc,
         metadata.sh_degree);
+    if (constrained_z_up_navigation_) {
+        // A newly loaded scene needs its own alignment and provisional start.
+        setConstrainedZUpNavigation(true);
+    }
     point_processing_.clear();
     const QString data_description = metadata.isComplete3DGS()
         ? QString("3DGS | SH degree %1").arg(metadata.sh_degree)
@@ -90,36 +96,41 @@ void ViewerController::resetView()
     yaw_degrees_ = 0.0f;
     pitch_degrees_ = 0.0f;
     translation_ = {};
-    camera_distance_ = kInitialCameraDistance;
-    z_up_camera_position_ = QVector3D(
-        0.0f, -kInitialCameraDistance, 0.0f);
+    camera_distance_ = constrained_z_up_navigation_
+        ? kNavigateInitialCameraDistance : kInitialCameraDistance;
+    z_up_camera_position_ = QVector3D(0.0f, -camera_distance_, 0.0f);
     applyTransform();
 }
 
 void ViewerController::setConstrainedZUpNavigation(bool enabled)
 {
+    if (enabled) {
+        if (viewer_->autoAlignSceneUp()) {
+            emit floorAlignmentStatusChanged(
+                "Automatically aligned the scene's shortest axis to +Z.");
+        } else {
+            emit floorAlignmentStatusChanged(
+                "Automatic Z-up alignment failed; use three floor points.");
+        }
+    }
     constrained_z_up_navigation_ = enabled;
     yaw_degrees_ = 0.0f;
     pitch_degrees_ = 0.0f;
     if (enabled) {
-        // Enter Z-up navigation from a centered, level side view of the scene.
+        // Enter Navigate mode near the center of the normalized scene. This is
+        // a provisional indoor pose until a trajectory start pose is supplied.
+        translation_ = {};
+        camera_distance_ = kNavigateInitialCameraDistance;
+        z_up_camera_position_ = QVector3D(
+            0.0f, -kNavigateInitialCameraDistance, 0.0f);
+    } else {
+        // Explore mode returns to a complete-scene orbit view.
         translation_ = {};
         camera_distance_ = kInitialCameraDistance;
-        z_up_camera_position_ = QVector3D(
-            0.0f, -kInitialCameraDistance, 0.0f);
     }
     drag_mode_ = DragMode::None;
     viewer_->setZUpGizmo(enabled);
     applyTransform();
-}
-
-void ViewerController::beginFloorAlignment()
-{
-    selecting_floor_points_ = true;
-    floor_points_.clear();
-    viewer_->clearFloorAlignment();
-    emit floorAlignmentStatusChanged(
-        "Click three separated points on the floor (0/3).");
 }
 
 void ViewerController::applyTransform()
@@ -152,6 +163,7 @@ void ViewerController::applyTransform()
         transform = inverse_fixed_view * desired_view;
         viewer_->setInteractionTransform(
             transform, yaw_degrees_, pitch_degrees_);
+        viewer_->setNavigationPose(z_up_camera_position_, yaw_degrees_);
         emit orientationChanged(yaw_degrees_, pitch_degrees_);
         return;
     }
@@ -215,35 +227,6 @@ bool ViewerController::eventFilter(QObject* watched, QEvent* event)
     case QEvent::MouseButtonPress: {
         auto* mouse_event = static_cast<QMouseEvent*>(event);
         if (mouse_event->button() == Qt::LeftButton) {
-            if (selecting_floor_points_) {
-                const auto selected =
-                    viewer_->pickGaussianAt(mouse_event->pos());
-                if (!selected) {
-                    emit floorAlignmentStatusChanged(
-                        "No Gaussian near that click; try again.");
-                } else {
-                    floor_points_.push_back(*selected);
-                    viewer_->setFloorSelectionPoints(floor_points_);
-                    if (floor_points_.size() < 3) {
-                        emit floorAlignmentStatusChanged(
-                            QString("Click floor point %1/3.")
-                                .arg(floor_points_.size() + 1));
-                    } else {
-                        selecting_floor_points_ = false;
-                        if (viewer_->alignFloorFromPoints(floor_points_)) {
-                            emit floorAlignmentStatusChanged(
-                                "Floor aligned to +Z. Enable Z-up navigation.");
-                        } else {
-                            floor_points_.clear();
-                            viewer_->setFloorSelectionPoints({});
-                            emit floorAlignmentStatusChanged(
-                                "Points are nearly collinear; start again.");
-                        }
-                    }
-                }
-                mouse_event->accept();
-                return true;
-            }
             const auto axis = OrientationGizmo::hitTest(
                 mouse_event->pos(), viewer_->size(), yaw_degrees_, pitch_degrees_,
                 constrained_z_up_navigation_);
@@ -330,8 +313,8 @@ bool ViewerController::eventFilter(QObject* watched, QEvent* event)
             const float visible_world_height =
                 2.0f * std::tan(kHalfVerticalFieldOfViewRadians) *
                 std::max(camera_distance_, kMinimumCameraDistance);
-            const float world_units_per_pixel = visible_world_height /
-                std::max(1, viewer_->height());
+            const float world_units_per_pixel = kPanSensitivity *
+                visible_world_height / std::max(1, viewer_->height());
             if (constrained_z_up_navigation_) {
                 const float yaw_radians = qDegreesToRadians(yaw_degrees_);
                 const QVector3D right(
@@ -372,12 +355,16 @@ bool ViewerController::eventFilter(QObject* watched, QEvent* event)
     }
     case QEvent::Wheel: {
         auto* wheel_event = static_cast<QWheelEvent*>(event);
+        const int angle_delta = wheel_event->angleDelta().y();
+        const int pixel_delta = wheel_event->pixelDelta().y();
+        const float wheel_steps = angle_delta != 0
+            ? static_cast<float>(angle_delta) / 120.0f
+            : static_cast<float>(pixel_delta) / 60.0f;
+        if (std::abs(wheel_steps) < 1.0e-4f) break;
         const float previous_distance = camera_distance_;
         camera_distance_ = std::clamp(
-            camera_distance_ *
-                (wheel_event->angleDelta().y() > 0
-                    ? kDollyFactor
-                    : 1.0f / kDollyFactor),
+            camera_distance_ * std::pow(
+                kDollyFactorPerWheelStep, wheel_steps),
             kMinimumCameraDistance, kMaximumCameraDistance);
         if (constrained_z_up_navigation_) {
             const float yaw_radians = qDegreesToRadians(yaw_degrees_);

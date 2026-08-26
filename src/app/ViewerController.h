@@ -19,7 +19,6 @@ public:
     void openPlyFile(QWidget* dialog_parent);
     void resetView();
     void setConstrainedZUpNavigation(bool enabled);
-    void beginFloorAlignment();
 
 signals:
     void orientationChanged(float yaw_degrees, float pitch_degrees);
@@ -52,7 +51,5 @@ private:
     float pitch_degrees_ = 0.0f;
     float camera_distance_ = 3.0f;
     bool constrained_z_up_navigation_ = false;
-    bool selecting_floor_points_ = false;
-    std::vector<QVector3D> floor_points_;
     DragMode drag_mode_ = DragMode::None;
 };
