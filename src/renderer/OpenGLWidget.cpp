@@ -40,7 +40,6 @@ constexpr float kQuadCorners[] = {
     -1.0f,  1.0f,
      1.0f,  1.0f,
 };
-+
 constexpr char kSplatVertexShader[] = R"GLSL(
 #version 330 core
 
@@ -612,6 +611,20 @@ void OpenGLWidget::setNavigationPose(
     navigation_position_ = position;
     yaw_degrees_ = yaw_degrees;
     update();
+}
+
+void OpenGLWidget::setMiniMapTrajectory(
+    const std::vector<QVector3D>& raw_positions,
+    const std::vector<QVector3D>& smooth_positions)
+{
+    raw_trajectory_ = raw_positions;
+    smooth_trajectory_ = smooth_positions;
+    update();
+}
+
+QMatrix4x4 OpenGLWidget::sceneWorldToAlignedTransform() const
+{
+    return scene_alignment_matrix_ * model_matrix_;
 }
 
 void OpenGLWidget::finalizeInteractionSort()
@@ -1342,9 +1355,37 @@ void OpenGLWidget::paintMiniMap(QPainter& painter)
         }
     }
 
+    const float span_x = std::max(minimap_max_x_ - minimap_min_x_, 1.0e-5f);
+    const float span_y = std::max(minimap_max_y_ - minimap_min_y_, 1.0e-5f);
+    const auto to_map = [&](const QVector3D& position) {
+        return QPointF(
+            map.left() + (position.x() - minimap_min_x_) / span_x * map.width(),
+            map.bottom() - (position.y() - minimap_min_y_) / span_y * map.height());
+    };
+    const auto draw_path = [&](const std::vector<QVector3D>& positions,
+                               const QPen& pen) {
+        if (positions.size() < 2) return;
+        QPainterPath path(to_map(positions.front()));
+        for (std::size_t index = 1; index < positions.size(); ++index)
+            path.lineTo(to_map(positions[index]));
+        painter.setPen(pen);
+        painter.setBrush(Qt::NoBrush);
+        painter.drawPath(path);
+    };
+    painter.save();
+    painter.setClipRect(map);
+    draw_path(raw_trajectory_, QPen(QColor(220, 225, 235, 105), 1.0));
+    draw_path(smooth_trajectory_, QPen(QColor(58, 218, 238), 2.5));
+    if (!smooth_trajectory_.empty()) {
+        painter.setPen(QPen(QColor(255, 255, 255, 190), 1.0));
+        painter.setBrush(QColor(71, 215, 120));
+        painter.drawEllipse(to_map(smooth_trajectory_.front()), 4.0, 4.0);
+        painter.setBrush(QColor(245, 86, 86));
+        painter.drawEllipse(to_map(smooth_trajectory_.back()), 4.0, 4.0);
+    }
+    painter.restore();
+
     if (navigation_pose_visible_) {
-        const float span_x = std::max(minimap_max_x_ - minimap_min_x_, 1.0e-5f);
-        const float span_y = std::max(minimap_max_y_ - minimap_min_y_, 1.0e-5f);
         const QPointF robot(
             std::clamp(
                 map.left() + (navigation_position_.x() - minimap_min_x_) /

@@ -40,6 +40,9 @@ public:
                                  float yaw_degrees, float pitch_degrees);
     void setZUpGizmo(bool enabled);
     void setNavigationPose(const QVector3D& position, float yaw_degrees);
+    void setMiniMapTrajectory(const std::vector<QVector3D>& raw_positions,
+                              const std::vector<QVector3D>& smooth_positions);
+    QMatrix4x4 sceneWorldToAlignedTransform() const;
     void finalizeInteractionSort();
     bool autoAlignSceneUp();
 
@@ -130,6 +133,8 @@ private:
     float minimap_min_y_ = -1.0f;
     float minimap_max_y_ = 1.0f;
     std::uint16_t minimap_peak_occupancy_ = 0;
+    std::vector<QVector3D> raw_trajectory_;
+    std::vector<QVector3D> smooth_trajectory_;
     QColor background_color_{25, 30, 42};
     float yaw_degrees_ = 0.0f;
     float pitch_degrees_ = 0.0f;

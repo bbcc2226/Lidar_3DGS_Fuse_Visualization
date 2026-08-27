@@ -48,6 +48,11 @@ MainWindow::MainWindow(QWidget* parent)
     load_status_label_->setWordWrap(true);
     panel_layout->addWidget(open_ply_button);
     panel_layout->addWidget(load_status_label_);
+    auto* open_trajectory_button = new QPushButton("Open trajectory...", panel);
+    trajectory_status_label_ = new QLabel("No trajectory loaded", panel);
+    trajectory_status_label_->setWordWrap(true);
+    panel_layout->addWidget(open_trajectory_button);
+    panel_layout->addWidget(trajectory_status_label_);
     panel_layout->addSpacing(12);
 
     auto* reset_button = new QPushButton("Reset view", panel);
@@ -132,6 +137,8 @@ MainWindow::MainWindow(QWidget* parent)
 
     connect(open_ply_button, &QPushButton::clicked,
             this, [this]() { viewer_controller_->openPlyFile(this); });
+    connect(open_trajectory_button, &QPushButton::clicked,
+            this, [this]() { viewer_controller_->openTrajectoryFile(this); });
     connect(reset_button, &QPushButton::clicked,
             viewer_controller_, &ViewerController::resetView);
     connect(working_mode,
@@ -184,4 +191,9 @@ MainWindow::MainWindow(QWidget* parent)
     });
     connect(viewer_controller_, &ViewerController::floorAlignmentStatusChanged,
             floor_alignment_label_, &QLabel::setText);
+    connect(viewer_controller_, &ViewerController::trajectoryStatusChanged, this,
+            [this](const QString& text, const QString& path) {
+                trajectory_status_label_->setText(text);
+                trajectory_status_label_->setToolTip(path);
+            });
 }
