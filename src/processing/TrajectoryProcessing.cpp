@@ -14,12 +14,12 @@ bool isFinite(const Vec3d& value)
     return value.array().isFinite().all();
 }
 
-double medianHeight(const std::vector<OptimizedCameraPose>& poses)
+double medianHeight(const std::vector<Vec3d>& positions)
 {
     std::vector<double> heights;
-    heights.reserve(poses.size());
-    for (const OptimizedCameraPose& pose : poses)
-        heights.push_back(pose.position_world.z());
+    heights.reserve(positions.size());
+    for (const Vec3d& position : positions)
+        heights.push_back(position.z());
 
     const std::size_t middle = heights.size() / 2;
     std::nth_element(heights.begin(), heights.begin() + middle, heights.end());
@@ -113,6 +113,13 @@ bool TrajectoryProcessing::loadOptimizedCameraPoses(const std::string& path)
 bool TrajectoryProcessing::smoothTrajectory(
     const TrajectorySmoothingOptions& options)
 {
+    return smoothTrajectory(Mat4d::Identity(), options);
+}
+
+bool TrajectoryProcessing::smoothTrajectory(
+    const Mat4d& world_to_output,
+    const TrajectorySmoothingOptions& options)
+{
     smooth_trajectory_.clear();
     last_error_.clear();
     if (poses_.empty()) {
@@ -125,8 +132,21 @@ bool TrajectoryProcessing::smoothTrajectory(
         return false;
     }
 
+    std::vector<Vec3d> transformed_positions;
+    transformed_positions.reserve(poses_.size());
+    for (const OptimizedCameraPose& pose : poses_) {
+        const Eigen::Vector4d homogeneous = world_to_output *
+            Eigen::Vector4d(pose.position_world.x(), pose.position_world.y(),
+                            pose.position_world.z(), 1.0);
+        if (!homogeneous.allFinite() || std::abs(homogeneous.w()) < 1.0e-12) {
+            last_error_ = "World-to-trajectory transform produced an invalid point";
+            return false;
+        }
+        transformed_positions.push_back(homogeneous.head<3>() / homogeneous.w());
+    }
+
     trajectory_height_ = std::isfinite(options.fixed_height)
-        ? options.fixed_height : medianHeight(poses_);
+        ? options.fixed_height : medianHeight(transformed_positions);
     smooth_trajectory_.reserve(poses_.size());
     const int pose_count = static_cast<int>(poses_.size());
     const double sigma_squared =
@@ -141,15 +161,15 @@ bool TrajectoryProcessing::smoothTrajectory(
             const double offset = static_cast<double>(neighbor - index);
             const double weight = std::exp(
                 -0.5 * offset * offset / sigma_squared);
-            weighted_position += weight * poses_[neighbor].position_world;
+            weighted_position += weight * transformed_positions[neighbor];
             weight_sum += weight;
         }
 
         TrajectoryPoint point;
         point.image_id = poses_[index].image_id;
         point.image_name = poses_[index].image_name;
-        point.position_world = weighted_position / weight_sum;
-        point.position_world.z() = trajectory_height_;
+        point.position = weighted_position / weight_sum;
+        point.position.z() = trajectory_height_;
         smooth_trajectory_.push_back(std::move(point));
     }
     return true;
@@ -167,9 +187,9 @@ bool TrajectoryProcessing::saveSmoothTrajectory(const std::string& path) const
     output << "# IMAGE_ID X Y Z IMAGE_NAME\n" << std::setprecision(17);
     for (const TrajectoryPoint& point : smooth_trajectory_) {
         output << point.image_id << ' '
-               << point.position_world.x() << ' '
-               << point.position_world.y() << ' '
-               << point.position_world.z() << ' '
+               << point.position.x() << ' '
+               << point.position.y() << ' '
+               << point.position.z() << ' '
                << point.image_name << '\n';
     }
     return output.good();

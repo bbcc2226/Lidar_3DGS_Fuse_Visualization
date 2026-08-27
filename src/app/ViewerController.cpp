@@ -89,6 +89,75 @@ void ViewerController::openPlyFile(QWidget* dialog_parent)
             .arg(static_cast<qulonglong>(viewer_->uploadedSplatCount()))
             .arg(data_description),
         path);
+    updateTrajectoryForScene();
+}
+
+void ViewerController::openTrajectoryFile(QWidget* dialog_parent)
+{
+    QFileDialog dialog(
+        dialog_parent, "Open optimized camera poses",
+        QStringLiteral(PROJECT_ROOT_DIR) + "/data");
+    dialog.setAcceptMode(QFileDialog::AcceptOpen);
+    dialog.setFileMode(QFileDialog::ExistingFile);
+    dialog.setNameFilters({"Camera pose files (*.txt)", "All files (*)"});
+    dialog.setOption(QFileDialog::DontUseNativeDialog, true);
+    if (dialog.exec() != QDialog::Accepted) return;
+
+    const QStringList selected_files = dialog.selectedFiles();
+    if (selected_files.isEmpty()) return;
+    const QString path = selected_files.constFirst();
+    if (!trajectory_processing_.loadOptimizedCameraPoses(path.toStdString())) {
+        viewer_->setMiniMapTrajectory({}, {});
+        emit trajectoryStatusChanged(
+            "Trajectory load failed: " +
+                QString::fromStdString(trajectory_processing_.lastError()),
+            path);
+        return;
+    }
+    updateTrajectoryForScene();
+    emit trajectoryStatusChanged(
+        QString("Loaded and smoothed %1 camera poses")
+            .arg(static_cast<qulonglong>(trajectory_processing_.poses().size())),
+        path);
+}
+
+void ViewerController::updateTrajectoryForScene()
+{
+    if (trajectory_processing_.poses().empty()) return;
+
+    const QMatrix4x4 qt_transform = viewer_->sceneWorldToAlignedTransform();
+    Mat4d world_to_aligned;
+    for (int row = 0; row < 4; ++row)
+        for (int column = 0; column < 4; ++column)
+            world_to_aligned(row, column) = qt_transform(row, column);
+
+    TrajectorySmoothingOptions options;
+    if (!trajectory_processing_.smoothTrajectory(world_to_aligned, options)) {
+        viewer_->setMiniMapTrajectory({}, {});
+        emit trajectoryStatusChanged(
+            "Trajectory smoothing failed: " +
+                QString::fromStdString(trajectory_processing_.lastError()), {});
+        return;
+    }
+
+    std::vector<QVector3D> raw_positions;
+    raw_positions.reserve(trajectory_processing_.poses().size());
+    for (const OptimizedCameraPose& pose : trajectory_processing_.poses()) {
+        raw_positions.push_back(qt_transform.map(QVector3D(
+            static_cast<float>(pose.position_world.x()),
+            static_cast<float>(pose.position_world.y()),
+            static_cast<float>(pose.position_world.z()))));
+    }
+    std::vector<QVector3D> smooth_positions;
+    smooth_positions.reserve(trajectory_processing_.smoothedTrajectory().size());
+    for (const TrajectoryPoint& point :
+         trajectory_processing_.smoothedTrajectory()) {
+        smooth_positions.emplace_back(
+            static_cast<float>(point.position.x()),
+            static_cast<float>(point.position.y()),
+            static_cast<float>(point.position.z()));
+    }
+    viewer_->setMiniMapTrajectory(raw_positions, smooth_positions);
 }
 
 void ViewerController::resetView()
@@ -130,6 +199,7 @@ void ViewerController::setConstrainedZUpNavigation(bool enabled)
     }
     drag_mode_ = DragMode::None;
     viewer_->setZUpGizmo(enabled);
+    updateTrajectoryForScene();
     applyTransform();
 }
 

@@ -5,6 +5,7 @@
 #include <QVector3D>
 
 #include "3dgsProcessing.h"
+#include "TrajectoryProcessing.h"
 
 class OpenGLWidget;
 class QWidget;
@@ -17,6 +18,7 @@ public:
     explicit ViewerController(OpenGLWidget* viewer, QObject* parent = nullptr);
 
     void openPlyFile(QWidget* dialog_parent);
+    void openTrajectoryFile(QWidget* dialog_parent);
     void resetView();
     void setConstrainedZUpNavigation(bool enabled);
 
@@ -24,6 +26,7 @@ signals:
     void orientationChanged(float yaw_degrees, float pitch_degrees);
     void loadStatusChanged(const QString& text, const QString& file_path);
     void floorAlignmentStatusChanged(const QString& text);
+    void trajectoryStatusChanged(const QString& text, const QString& file_path);
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
@@ -40,9 +43,11 @@ private:
 
     void applyTransform();
     void snapToAxis(int axis);
+    void updateTrajectoryForScene();
 
     OpenGLWidget* viewer_ = nullptr;
     GaussianSplatProcessing point_processing_;
+    TrajectoryProcessing trajectory_processing_;
     QPoint last_mouse_position_;
     QPoint drag_start_position_;
     QVector3D translation_;

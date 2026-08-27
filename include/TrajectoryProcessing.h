@@ -22,7 +22,8 @@ struct TrajectoryPoint
 {
     int image_id = -1;
     std::string image_name;
-    Vec3d position_world = Vec3d::Zero();
+    // Position in the coordinate frame supplied to smoothTrajectory().
+    Vec3d position = Vec3d::Zero();
 };
 
 struct TrajectorySmoothingOptions
@@ -41,6 +42,8 @@ class TrajectoryProcessing
 public:
     bool loadOptimizedCameraPoses(const std::string& path);
     bool smoothTrajectory(const TrajectorySmoothingOptions& options = {});
+    bool smoothTrajectory(const Mat4d& world_to_output,
+                          const TrajectorySmoothingOptions& options = {});
     bool saveSmoothTrajectory(const std::string& path) const;
 
     const std::vector<OptimizedCameraPose>& poses() const { return poses_; }
