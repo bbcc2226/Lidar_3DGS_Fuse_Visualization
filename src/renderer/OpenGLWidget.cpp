@@ -350,6 +350,34 @@ void main()
 }
 )GLSL";
 
+constexpr char kTrajectoryVertexShader[] = R"GLSL(
+#version 330 core
+layout(location = 0) in vec3 in_position;
+uniform mat4 u_mvp;
+uniform float u_point_size;
+void main()
+{
+    gl_Position = u_mvp * vec4(in_position, 1.0);
+    gl_PointSize = u_point_size;
+}
+)GLSL";
+
+constexpr char kTrajectoryFragmentShader[] = R"GLSL(
+#version 330 core
+uniform vec4 u_color;
+uniform bool u_round_point;
+out vec4 fragment_color;
+void main()
+{
+    if (u_round_point) {
+        vec2 offset = gl_PointCoord * 2.0 - 1.0;
+        if (dot(offset, offset) > 1.0) discard;
+    }
+    // The viewer uses premultiplied-alpha blending.
+    fragment_color = vec4(u_color.rgb * u_color.a, u_color.a);
+}
+)GLSL";
+
 constexpr char kSplatFragmentShader[] = R"GLSL(
 #version 330 core
 
@@ -619,6 +647,19 @@ void OpenGLWidget::setMiniMapTrajectory(
 {
     raw_trajectory_ = raw_positions;
     smooth_trajectory_ = smooth_positions;
+    trajectory_vertex_data_.clear();
+    trajectory_vertex_data_.reserve(
+        (raw_trajectory_.size() + smooth_trajectory_.size()) * 3);
+    const auto append_positions = [this](const std::vector<QVector3D>& positions) {
+        for (const QVector3D& position : positions) {
+            trajectory_vertex_data_.push_back(position.x());
+            trajectory_vertex_data_.push_back(position.y());
+            trajectory_vertex_data_.push_back(position.z());
+        }
+    };
+    append_positions(raw_trajectory_);
+    append_positions(smooth_trajectory_);
+    trajectory_buffer_dirty_ = true;
     update();
 }
 
@@ -738,6 +779,29 @@ void OpenGLWidget::initializeGL()
     }
     createSplatShaderProgram();
     createGpuReorderProgram();
+    createTrajectoryShaderProgram();
+}
+
+bool OpenGLWidget::createTrajectoryShaderProgram()
+{
+    trajectory_shader_program_ = std::make_unique<QOpenGLShaderProgram>();
+    if (!trajectory_shader_program_->addShaderFromSourceCode(
+            QOpenGLShader::Vertex, kTrajectoryVertexShader) ||
+        !trajectory_shader_program_->addShaderFromSourceCode(
+            QOpenGLShader::Fragment, kTrajectoryFragmentShader) ||
+        !trajectory_shader_program_->link()) {
+        qWarning("Trajectory shader failed: %s",
+                 qPrintable(trajectory_shader_program_->log()));
+        trajectory_shader_program_.reset();
+        return false;
+    }
+    if (!trajectory_vbo_.isCreated() && !trajectory_vbo_.create()) {
+        qWarning("Failed to create trajectory vertex buffer.");
+        trajectory_shader_program_.reset();
+        return false;
+    }
+    trajectory_vbo_.setUsagePattern(QOpenGLBuffer::DynamicDraw);
+    return true;
 }
 
 bool OpenGLWidget::createSplatShaderProgram()
@@ -1088,6 +1152,7 @@ void OpenGLWidget::destroySplatResources()
     allocated_splat_bytes_ = 0;
     splat_shader_program_.reset();
     gpu_reorder_program_.reset();
+    trajectory_shader_program_.reset();
     if (sh_texture_ != 0) glDeleteTextures(1, &sh_texture_);
     if (sh_buffer_ != 0) glDeleteBuffers(1, &sh_buffer_);
     if (source_splat_buffer_ != 0) glDeleteBuffers(1, &source_splat_buffer_);
@@ -1109,6 +1174,7 @@ void OpenGLWidget::destroySplatResources()
     sorted_index_texture_ = 0;
     alternate_sorted_index_texture_ = 0;
     splat_instance_vbo_.destroy();
+    trajectory_vbo_.destroy();
     quad_vbo_.destroy();
     splat_vao_.destroy();
 }
@@ -1284,6 +1350,70 @@ void OpenGLWidget::renderGaussianSplats()
     splat_shader_program_->release();
 }
 
+void OpenGLWidget::renderTrajectory()
+{
+    if (!trajectory_shader_program_ || !trajectory_shader_program_->isLinked() ||
+        !trajectory_vbo_.isCreated() || smooth_trajectory_.empty()) {
+        return;
+    }
+    if (trajectory_buffer_dirty_) {
+        if (!trajectory_vbo_.bind()) return;
+        trajectory_vbo_.allocate(
+            trajectory_vertex_data_.empty() ? nullptr
+                                            : trajectory_vertex_data_.data(),
+            static_cast<int>(trajectory_vertex_data_.size() * sizeof(float)));
+        trajectory_vbo_.release();
+        trajectory_buffer_dirty_ = false;
+    }
+    if (!trajectory_shader_program_->bind() || !trajectory_vbo_.bind()) return;
+
+    const QMatrix4x4 mvp =
+        projection_matrix_ * view_matrix_ * interaction_matrix_;
+    trajectory_shader_program_->setUniformValue("u_mvp", mvp);
+    trajectory_shader_program_->enableAttributeArray(0);
+    trajectory_shader_program_->setAttributeBuffer(
+        0, GL_FLOAT, 0, 3, 3 * static_cast<int>(sizeof(float)));
+
+    glEnable(GL_PROGRAM_POINT_SIZE);
+    if (raw_trajectory_.size() >= 2) {
+        trajectory_shader_program_->setUniformValue(
+            "u_color", QVector4D(0.88f, 0.9f, 0.94f, 0.28f));
+        trajectory_shader_program_->setUniformValue("u_round_point", false);
+        trajectory_shader_program_->setUniformValue("u_point_size", 1.0f);
+        glDrawArrays(GL_LINE_STRIP, 0,
+                     static_cast<GLsizei>(raw_trajectory_.size()));
+    }
+
+    const GLint smooth_offset = static_cast<GLint>(raw_trajectory_.size());
+    trajectory_shader_program_->setUniformValue(
+        "u_color", QVector4D(0.1f, 0.9f, 1.0f, 0.95f));
+    trajectory_shader_program_->setUniformValue("u_round_point", false);
+    trajectory_shader_program_->setUniformValue("u_point_size", 1.0f);
+    glLineWidth(2.0f);
+    glDrawArrays(GL_LINE_STRIP, smooth_offset,
+                 static_cast<GLsizei>(smooth_trajectory_.size()));
+    glLineWidth(1.0f);
+
+    trajectory_shader_program_->setUniformValue("u_round_point", true);
+    trajectory_shader_program_->setUniformValue("u_point_size", 10.0f);
+    trajectory_shader_program_->setUniformValue(
+        "u_color", QVector4D(0.2f, 1.0f, 0.4f, 1.0f));
+    glDrawArrays(GL_POINTS, smooth_offset, 1);
+    if (smooth_trajectory_.size() > 1) {
+        trajectory_shader_program_->setUniformValue(
+            "u_color", QVector4D(1.0f, 0.2f, 0.2f, 1.0f));
+        glDrawArrays(GL_POINTS,
+                     smooth_offset +
+                         static_cast<GLint>(smooth_trajectory_.size()) - 1,
+                     1);
+    }
+
+    glDisable(GL_PROGRAM_POINT_SIZE);
+    trajectory_shader_program_->disableAttributeArray(0);
+    trajectory_vbo_.release();
+    trajectory_shader_program_->release();
+}
+
 void OpenGLWidget::resizeGL(int width, int height)
 {
     glViewport(0, 0, width, height);
@@ -1307,6 +1437,7 @@ void OpenGLWidget::paintGL()
     glEnable(GL_BLEND);
     glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
     renderGaussianSplats();
+    renderTrajectory();
     glDisable(GL_BLEND);
     glDepthMask(GL_TRUE);
     glDisable(GL_DEPTH_TEST);

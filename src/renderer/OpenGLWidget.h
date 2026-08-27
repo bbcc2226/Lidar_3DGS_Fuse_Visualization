@@ -83,6 +83,7 @@ private:
     bool createSplatBuffers();
     bool createSplatShaderProgram();
     bool createGpuReorderProgram();
+    bool createTrajectoryShaderProgram();
     bool uploadSplatBuffer();
     bool uploadShTextureBuffer();
     bool sortAndUploadSplats(const QMatrix4x4& model_view);
@@ -90,6 +91,7 @@ private:
     void resetCameraMatrices();
     void fitPointCloudToView();
     void renderGaussianSplats();
+    void renderTrajectory();
     void paintDemoScene(QPainter& painter);
     void rebuildMiniMapLandscape();
     void paintMiniMap(QPainter& painter);
@@ -99,6 +101,7 @@ private:
     QOpenGLVertexArrayObject splat_vao_;
     QOpenGLBuffer quad_vbo_{QOpenGLBuffer::VertexBuffer};
     QOpenGLBuffer splat_instance_vbo_{QOpenGLBuffer::VertexBuffer};
+    QOpenGLBuffer trajectory_vbo_{QOpenGLBuffer::VertexBuffer};
     GLuint sh_buffer_ = 0;
     GLuint sh_texture_ = 0;
     GLuint source_splat_buffer_ = 0;
@@ -110,6 +113,7 @@ private:
     GLuint alternate_sorted_index_texture_ = 0;
     std::unique_ptr<QOpenGLShaderProgram> splat_shader_program_;
     std::unique_ptr<QOpenGLShaderProgram> gpu_reorder_program_;
+    std::unique_ptr<QOpenGLShaderProgram> trajectory_shader_program_;
     std::vector<GpuSplatData> source_gpu_splat_data_;
     std::vector<GpuSplatData> gpu_splat_data_;
     std::vector<std::uint32_t> splat_sort_indices_;
@@ -135,6 +139,8 @@ private:
     std::uint16_t minimap_peak_occupancy_ = 0;
     std::vector<QVector3D> raw_trajectory_;
     std::vector<QVector3D> smooth_trajectory_;
+    std::vector<float> trajectory_vertex_data_;
+    bool trajectory_buffer_dirty_ = true;
     QColor background_color_{25, 30, 42};
     float yaw_degrees_ = 0.0f;
     float pitch_degrees_ = 0.0f;
