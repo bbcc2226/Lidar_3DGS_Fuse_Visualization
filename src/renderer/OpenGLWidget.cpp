@@ -7,6 +7,7 @@
 #include <QOpenGLShaderProgram>
 #include <QPainter>
 #include <QPainterPath>
+#include <QPolygonF>
 #include <QQuaternion>
 #include <QSurfaceFormat>
 #include <QtMath>
@@ -19,6 +20,7 @@
 #include <cstring>
 #include <limits>
 #include <numeric>
+#include <queue>
 #include <thread>
 #include <type_traits>
 
@@ -62,6 +64,9 @@ uniform float u_low_pass_variance;
 uniform float u_maximum_splat_half_size;
 uniform bool u_highlight_large_splats;
 uniform bool u_suppress_oversized_splats;
+uniform bool u_clip_above_aligned_z;
+uniform mat4 u_scene_transform;
+uniform float u_max_aligned_z;
 
 out vec3 vertex_color;
 flat out float splat_opacity;
@@ -117,6 +122,17 @@ void main()
         color_scale_x.w, scale_yz_rotation_wx.xy);
     vec4 splat_rotation = vec4(
         scale_yz_rotation_wx.zw, rotation_yz.xy);
+
+    if (u_clip_above_aligned_z &&
+        (u_scene_transform * vec4(splat_position, 1.0)).z > u_max_aligned_z) {
+        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+        vertex_color = vec3(0.0);
+        splat_opacity = 0.0;
+        splat_opacity_scale = 0.0;
+        splat_center_pixels = vec2(0.0);
+        splat_conic = vec3(1.0, 0.0, 1.0);
+        return;
+    }
 
     vec4 quaternion_wxyz = normalizedQuaternion(splat_rotation);
     vec4 center_view = u_model_view * vec4(splat_position, 1.0);
@@ -504,6 +520,13 @@ void OpenGLWidget::setMinimumSplatOpacity(float opacity)
     update();
 }
 
+void OpenGLWidget::setVerticalFieldOfView(float degrees)
+{
+    vertical_field_of_view_degrees_ = std::clamp(degrees, 35.0f, 70.0f);
+    resizeGL(width(), height());
+    update();
+}
+
 void OpenGLWidget::setLargeSplatHighlightEnabled(bool enabled)
 {
     highlight_large_splats_ = enabled;
@@ -646,7 +669,14 @@ void OpenGLWidget::setMiniMapTrajectory(
     const std::vector<QVector3D>& smooth_positions)
 {
     raw_trajectory_ = raw_positions;
-    smooth_trajectory_ = smooth_positions;
+    proposed_trajectory_ = smooth_positions;
+    rebuildWalkability();
+    rebuildTrajectoryVertexData();
+    update();
+}
+
+void OpenGLWidget::rebuildTrajectoryVertexData()
+{
     trajectory_vertex_data_.clear();
     trajectory_vertex_data_.reserve(
         (raw_trajectory_.size() + smooth_trajectory_.size()) * 3);
@@ -660,12 +690,228 @@ void OpenGLWidget::setMiniMapTrajectory(
     append_positions(raw_trajectory_);
     append_positions(smooth_trajectory_);
     trajectory_buffer_dirty_ = true;
-    update();
 }
 
 QMatrix4x4 OpenGLWidget::sceneWorldToAlignedTransform() const
 {
     return scene_alignment_matrix_ * model_matrix_;
+}
+
+float OpenGLWidget::robotEyeHeightAligned(
+    float height_meters, float fallback_height) const
+{
+    return has_estimated_floor_
+        ? estimated_floor_z_ + height_meters * point_cloud_scale_
+        : fallback_height;
+}
+
+void OpenGLWidget::setPathEditMode(bool enabled)
+{
+    path_edit_mode_ = enabled;
+    resizeGL(width(), height());
+    update();
+}
+
+void OpenGLWidget::zoomPathEditView(float wheel_steps)
+{
+    if (!path_edit_mode_) return;
+    path_edit_ortho_half_height_ = std::clamp(
+        path_edit_ortho_half_height_ * std::pow(0.82f, wheel_steps),
+        0.1f, 10.0f);
+    resizeGL(width(), height());
+    update();
+}
+
+QMatrix4x4 OpenGLWidget::activeAlignedViewProjection() const
+{
+    return path_edit_mode_
+        ? projection_matrix_ * view_matrix_
+        : projection_matrix_ * view_matrix_ * interaction_matrix_;
+}
+
+std::optional<QVector3D> OpenGLWidget::screenToPathPlane(
+    const QPoint& screen_position, float aligned_height) const
+{
+    if (width() <= 0 || height() <= 0) return std::nullopt;
+    const float x = 2.0f * screen_position.x() / width() - 1.0f;
+    const float y = 1.0f - 2.0f * screen_position.y() / height();
+    bool invertible = false;
+    const QMatrix4x4 inverse =
+        activeAlignedViewProjection().inverted(&invertible);
+    if (!invertible) return std::nullopt;
+    const QVector3D near_point =
+        (inverse * QVector4D(x, y, -1.0f, 1.0f)).toVector3DAffine();
+    const QVector3D far_point =
+        (inverse * QVector4D(x, y, 1.0f, 1.0f)).toVector3DAffine();
+    const QVector3D direction = far_point - near_point;
+    if (std::abs(direction.z()) < 1.0e-7f) return std::nullopt;
+    const float amount = (aligned_height - near_point.z()) / direction.z();
+    if (amount < 0.0f) return std::nullopt;
+    QVector3D point = near_point + amount * direction;
+    point.setZ(aligned_height);
+    return point;
+}
+
+int OpenGLWidget::hitTestManualPathPoint(
+    const QPoint& screen_position, float radius_pixels) const
+{
+    const QMatrix4x4 view_projection = activeAlignedViewProjection();
+    int best = -1;
+    float best_squared = radius_pixels * radius_pixels;
+    for (std::size_t index = 0; index < manual_path_.size(); ++index) {
+        const QVector4D clip = view_projection * QVector4D(manual_path_[index], 1.0f);
+        if (clip.w() <= 0.0f) continue;
+        const QVector3D ndc = clip.toVector3DAffine();
+        const QPointF screen(
+            (ndc.x() * 0.5f + 0.5f) * width(),
+            (1.0f - (ndc.y() * 0.5f + 0.5f)) * height());
+        const float dx = screen.x() - screen_position.x();
+        const float dy = screen.y() - screen_position.y();
+        const float distance_squared = dx * dx + dy * dy;
+        if (distance_squared < best_squared) {
+            best_squared = distance_squared;
+            best = static_cast<int>(index);
+        }
+    }
+    return best;
+}
+
+void OpenGLWidget::setManualPath(
+    const std::vector<QVector3D>& points, int selected_index)
+{
+    manual_path_ = points;
+    selected_manual_path_point_ = selected_index;
+    update();
+}
+
+void OpenGLWidget::setFreeZone(
+    const std::vector<std::vector<QVector3D>>& completed_polygons,
+    const std::vector<QVector3D>& active_vertices, bool active_closed,
+    int selected_index)
+{
+    completed_free_zone_polygons_ = completed_polygons;
+    free_zone_vertices_ = active_vertices;
+    free_zone_closed_ = active_closed;
+    selected_free_zone_vertex_ = selected_index;
+    update();
+}
+
+int OpenGLWidget::hitTestFreeZoneVertex(
+    const QPoint& screen_position, float radius_pixels) const
+{
+    const QMatrix4x4 view_projection = activeAlignedViewProjection();
+    int best = -1;
+    float best_squared = radius_pixels * radius_pixels;
+    for (std::size_t i = 0; i < free_zone_vertices_.size(); ++i) {
+        const QVector4D clip = view_projection * QVector4D(free_zone_vertices_[i], 1.0f);
+        if (clip.w() <= 0.0f) continue;
+        const QVector3D ndc = clip.toVector3DAffine();
+        const QPointF screen((ndc.x() * 0.5f + 0.5f) * width(),
+            (1.0f - (ndc.y() * 0.5f + 0.5f)) * height());
+        const float dx = screen.x() - screen_position.x();
+        const float dy = screen.y() - screen_position.y();
+        const float squared = dx * dx + dy * dy;
+        if (squared < best_squared) { best_squared = squared; best = static_cast<int>(i); }
+    }
+    return best;
+}
+
+void OpenGLWidget::setSemanticObjects(
+    const std::vector<SemanticObject>& objects)
+{
+    semantic_objects_ = objects;
+    update();
+}
+
+void OpenGLWidget::setSemanticObjectsVisible(bool visible)
+{
+    semantic_objects_visible_ = visible;
+    update();
+}
+
+void OpenGLWidget::setSemanticClassFilter(const QString& filter)
+{
+    semantic_class_filter_ = filter.trimmed();
+    update();
+}
+
+void OpenGLWidget::setSelectedSemanticObject(int object_id)
+{
+    selected_semantic_object_id_ = object_id;
+    update();
+}
+
+void OpenGLWidget::setSemanticSelectedOnly(bool selected_only)
+{
+    semantic_selected_only_ = selected_only;
+    update();
+}
+
+void OpenGLWidget::setNavigationPlan(
+    const std::vector<QVector3D>& aligned_route,
+    const QVector3D& aligned_target,
+    const QString& destination_name)
+{
+    navigation_plan_ = aligned_route;
+    navigation_target_ = aligned_target;
+    has_navigation_target_ = true;
+    navigation_target_tag_visible_ = false;
+    navigation_destination_name_ = destination_name;
+    update();
+}
+
+void OpenGLWidget::setNavigationTargetTagVisible(bool visible)
+{
+    navigation_target_tag_visible_ = visible;
+    update();
+}
+
+void OpenGLWidget::clearNavigationPlan()
+{
+    navigation_plan_.clear();
+    has_navigation_target_ = false;
+    navigation_target_tag_visible_ = false;
+    navigation_destination_name_.clear();
+    update();
+}
+
+int OpenGLWidget::hitTestSemanticObject(const QPoint& screen_position) const
+{
+    if (!semantic_objects_visible_) return -1;
+    const QMatrix4x4 world_to_clip = activeAlignedViewProjection() *
+        sceneWorldToAlignedTransform();
+    int best_id = -1;
+    float best_area = std::numeric_limits<float>::max();
+    for (const SemanticObject& object : semantic_objects_) {
+        if (semantic_selected_only_ && object.id != selected_semantic_object_id_)
+            continue;
+        if (!semantic_class_filter_.isEmpty() &&
+            !object.name.contains(semantic_class_filter_, Qt::CaseInsensitive))
+            continue;
+        float min_x = std::numeric_limits<float>::max();
+        float min_y = min_x;
+        float max_x = -min_x;
+        float max_y = -min_x;
+        bool valid = true;
+        for (int corner = 0; corner < 8; ++corner) {
+            const QVector3D p(
+                corner & 1 ? object.bounds_max_world.x() : object.bounds_min_world.x(),
+                corner & 2 ? object.bounds_max_world.y() : object.bounds_min_world.y(),
+                corner & 4 ? object.bounds_max_world.z() : object.bounds_min_world.z());
+            const QVector4D clip = world_to_clip * QVector4D(p, 1.0f);
+            if (clip.w() <= 0.0f) { valid = false; break; }
+            const QVector3D ndc = clip.toVector3DAffine();
+            const float x = (ndc.x() * 0.5f + 0.5f) * width();
+            const float y = (1.0f - (ndc.y() * 0.5f + 0.5f)) * height();
+            min_x = std::min(min_x, x); max_x = std::max(max_x, x);
+            min_y = std::min(min_y, y); max_y = std::max(max_y, y);
+        }
+        if (!valid || screen_position.x() < min_x || screen_position.x() > max_x ||
+            screen_position.y() < min_y || screen_position.y() > max_y) continue;
+        const float area = (max_x - min_x) * (max_y - min_y);
+        if (area < best_area) { best_area = area; best_id = object.id; }
+    }
+    return best_id;
 }
 
 void OpenGLWidget::finalizeInteractionSort()
@@ -797,6 +1043,12 @@ bool OpenGLWidget::createTrajectoryShaderProgram()
     }
     if (!trajectory_vbo_.isCreated() && !trajectory_vbo_.create()) {
         qWarning("Failed to create trajectory vertex buffer.");
+        trajectory_shader_program_.reset();
+        return false;
+    }
+    if (!trajectory_vao_.isCreated() && !trajectory_vao_.create()) {
+        qWarning("Failed to create trajectory vertex array.");
+        trajectory_vbo_.destroy();
         trajectory_shader_program_.reset();
         return false;
     }
@@ -1175,6 +1427,7 @@ void OpenGLWidget::destroySplatResources()
     alternate_sorted_index_texture_ = 0;
     splat_instance_vbo_.destroy();
     trajectory_vbo_.destroy();
+    trajectory_vao_.destroy();
     quad_vbo_.destroy();
     splat_vao_.destroy();
 }
@@ -1230,6 +1483,7 @@ void OpenGLWidget::rebuildMiniMapLandscape()
 {
     minimap_occupancy_.fill(0);
     minimap_peak_occupancy_ = 0;
+    has_estimated_floor_ = false;
     if (source_gpu_splat_data_.empty()) return;
 
     QVector3D first = scene_alignment_matrix_.map(
@@ -1265,6 +1519,264 @@ void OpenGLWidget::rebuildMiniMapLandscape()
         if (occupancy < std::numeric_limits<std::uint16_t>::max()) ++occupancy;
         minimap_peak_occupancy_ = std::max(minimap_peak_occupancy_, occupancy);
     }
+    std::vector<float> aligned_heights;
+    aligned_heights.reserve(source_gpu_splat_data_.size());
+    for (const GpuSplatData& splat : source_gpu_splat_data_) {
+        const float alpha = 1.0f / (1.0f + std::exp(-splat.opacity));
+        if (alpha < 0.12f) continue;
+        aligned_heights.push_back(scene_alignment_matrix_.map(
+            model_matrix_.map(QVector3D(splat.x, splat.y, splat.z))).z());
+    }
+    if (!aligned_heights.empty()) {
+        const std::size_t floor_index = aligned_heights.size() / 10;
+        std::nth_element(aligned_heights.begin(),
+                         aligned_heights.begin() + floor_index,
+                         aligned_heights.end());
+        estimated_floor_z_ = aligned_heights[floor_index];
+        has_estimated_floor_ = true;
+    }
+    rebuildWalkability();
+    rebuildTrajectoryVertexData();
+}
+
+void OpenGLWidget::rebuildWalkability()
+{
+    walkability_.fill(0);
+    smooth_trajectory_ = proposed_trajectory_;
+    if (source_gpu_splat_data_.empty() || raw_trajectory_.empty() ||
+        proposed_trajectory_.empty()) return;
+
+    const float span_x = std::max(minimap_max_x_ - minimap_min_x_, 1.0e-5f);
+    const float span_y = std::max(minimap_max_y_ - minimap_min_y_, 1.0e-5f);
+    const float cell_x = span_x / kMiniMapGridSize;
+    const float cell_y = span_y / kMiniMapGridSize;
+    const auto grid_x = [&](float x) {
+        return std::clamp(static_cast<int>(
+            (x - minimap_min_x_) / span_x * kMiniMapGridSize),
+            0, kMiniMapGridSize - 1);
+    };
+    const auto grid_y = [&](float y) {
+        return std::clamp(static_cast<int>(
+            (y - minimap_min_y_) / span_y * kMiniMapGridSize),
+            0, kMiniMapGridSize - 1);
+    };
+
+    std::vector<float> heights;
+    heights.reserve(source_gpu_splat_data_.size());
+    for (const GpuSplatData& splat : source_gpu_splat_data_) {
+        const float alpha = 1.0f / (1.0f + std::exp(-splat.opacity));
+        if (alpha < 0.12f) continue;
+        heights.push_back(scene_alignment_matrix_.map(
+            model_matrix_.map(QVector3D(splat.x, splat.y, splat.z))).z());
+    }
+    if (heights.empty()) return;
+    const std::size_t floor_index = heights.size() / 10;
+    std::nth_element(
+        heights.begin(), heights.begin() + floor_index, heights.end());
+    const float floor_z = has_estimated_floor_
+        ? estimated_floor_z_ : heights[floor_index];
+
+    std::vector<float> camera_heights;
+    camera_heights.reserve(raw_trajectory_.size());
+    for (const QVector3D& position : raw_trajectory_)
+        camera_heights.push_back(position.z());
+    const std::size_t camera_middle = camera_heights.size() / 2;
+    std::nth_element(camera_heights.begin(),
+                     camera_heights.begin() + camera_middle,
+                     camera_heights.end());
+    const float camera_z = camera_heights[camera_middle];
+    const float camera_above_floor = std::max(camera_z - floor_z, 0.1f);
+    // In top-down editing, cut slightly below the camera centers. This removes
+    // ceiling and high wall Gaussians while preserving tables, sofas, and
+    // other geometry relevant to manual path selection.
+    path_edit_ceiling_cutoff_ = floor_z + 0.85f * camera_above_floor;
+    const float obstacle_min_z = floor_z + 0.08f * camera_above_floor;
+    const float obstacle_max_z = floor_z + 1.15f * camera_above_floor;
+
+    std::array<bool, kMiniMapGridSize * kMiniMapGridSize> occupied{};
+    for (const GpuSplatData& splat : source_gpu_splat_data_) {
+        const float alpha = 1.0f / (1.0f + std::exp(-splat.opacity));
+        if (alpha < 0.12f) continue;
+        const QVector3D point = scene_alignment_matrix_.map(
+            model_matrix_.map(QVector3D(splat.x, splat.y, splat.z)));
+        if (point.z() < obstacle_min_z || point.z() > obstacle_max_z) continue;
+        const int center_x = grid_x(point.x());
+        const int center_y = grid_y(point.y());
+        const float gaussian_radius = has_trained_scale_
+            ? std::min(
+                point_cloud_scale_ * std::exp(std::min(
+                    std::max(splat.scale_x, splat.scale_y), 20.0f)),
+                3.0f * std::max(cell_x, cell_y))
+            : 0.0f;
+        const int radius = std::clamp(static_cast<int>(std::ceil(
+            gaussian_radius / std::max(cell_x, cell_y))), 0, 3);
+        for (int dy = -radius; dy <= radius; ++dy) {
+            for (int dx = -radius; dx <= radius; ++dx) {
+                if (dx * dx + dy * dy > radius * radius) continue;
+                const int x = center_x + dx;
+                const int y = center_y + dy;
+                if (x >= 0 && x < kMiniMapGridSize &&
+                    y >= 0 && y < kMiniMapGridSize)
+                    occupied[y * kMiniMapGridSize + x] = true;
+            }
+        }
+    }
+
+    // The input reconstruction is metric in the same world frame as the
+    // camera poses. Inflate by a 0.30 m robot radius plus 0.10 m margin.
+    const float clearance_aligned = 0.40f * point_cloud_scale_;
+    const int inflation = std::clamp(static_cast<int>(std::ceil(
+        clearance_aligned / std::min(cell_x, cell_y))), 1, 12);
+    std::array<bool, kMiniMapGridSize * kMiniMapGridSize> unsafe = occupied;
+    for (int y = 0; y < kMiniMapGridSize; ++y) {
+        for (int x = 0; x < kMiniMapGridSize; ++x) {
+            if (!occupied[y * kMiniMapGridSize + x]) continue;
+            for (int dy = -inflation; dy <= inflation; ++dy) {
+                for (int dx = -inflation; dx <= inflation; ++dx) {
+                    if (dx * dx + dy * dy > inflation * inflation) continue;
+                    const int near_x = x + dx;
+                    const int near_y = y + dy;
+                    if (near_x >= 0 && near_x < kMiniMapGridSize &&
+                        near_y >= 0 && near_y < kMiniMapGridSize)
+                        unsafe[near_y * kMiniMapGridSize + near_x] = true;
+                }
+            }
+        }
+    }
+
+    for (std::size_t index = 0; index < walkability_.size(); ++index)
+        walkability_[index] = occupied[index] ? 1 : (unsafe[index] ? 2 : 3);
+
+    // Project unsafe smoothed samples onto the nearest cell with sufficient
+    // clearance. These are candidate corrections, not certified navigation.
+    smooth_trajectory_.clear();
+    smooth_trajectory_.reserve(proposed_trajectory_.size());
+    for (const QVector3D& proposed : proposed_trajectory_) {
+        const int source_x = grid_x(proposed.x());
+        const int source_y = grid_y(proposed.y());
+        int best_x = source_x;
+        int best_y = source_y;
+        bool found = !unsafe[source_y * kMiniMapGridSize + source_x];
+        for (int radius = 1; !found && radius <= 10; ++radius) {
+            for (int dy = -radius; dy <= radius && !found; ++dy) {
+                for (int dx = -radius; dx <= radius; ++dx) {
+                    if (std::max(std::abs(dx), std::abs(dy)) != radius) continue;
+                    const int x = source_x + dx;
+                    const int y = source_y + dy;
+                    if (x < 0 || x >= kMiniMapGridSize ||
+                        y < 0 || y >= kMiniMapGridSize) continue;
+                    if (!unsafe[y * kMiniMapGridSize + x]) {
+                        best_x = x;
+                        best_y = y;
+                        found = true;
+                        break;
+                    }
+                }
+            }
+        }
+        QVector3D corrected = proposed;
+        if (found) {
+            corrected.setX(minimap_min_x_ + (best_x + 0.5f) * cell_x);
+            corrected.setY(minimap_min_y_ + (best_y + 0.5f) * cell_y);
+        } else {
+            walkability_[source_y * kMiniMapGridSize + source_x] = 4;
+        }
+        smooth_trajectory_.push_back(corrected);
+    }
+
+    const auto line_is_safe = [&](int x0, int y0, int x1, int y1) {
+        const int steps = std::max(std::abs(x1 - x0), std::abs(y1 - y0));
+        for (int step = 0; step <= steps; ++step) {
+            const float amount = steps > 0
+                ? static_cast<float>(step) / steps : 0.0f;
+            const int x = static_cast<int>(std::round(
+                x0 + amount * (x1 - x0)));
+            const int y = static_cast<int>(std::round(
+                y0 + amount * (y1 - y0)));
+            if (unsafe[y * kMiniMapGridSize + x]) return false;
+        }
+        return true;
+    };
+    const auto route_cells = [&](int start_x, int start_y,
+                                 int goal_x, int goal_y) {
+        using QueueEntry = std::pair<float, int>;
+        std::priority_queue<QueueEntry, std::vector<QueueEntry>,
+                            std::greater<QueueEntry>> open;
+        constexpr int kCellCount = kMiniMapGridSize * kMiniMapGridSize;
+        std::array<float, kCellCount> cost;
+        std::array<int, kCellCount> parent;
+        cost.fill(std::numeric_limits<float>::infinity());
+        parent.fill(-1);
+        const int start = start_y * kMiniMapGridSize + start_x;
+        const int goal = goal_y * kMiniMapGridSize + goal_x;
+        cost[start] = 0.0f;
+        open.emplace(0.0f, start);
+        constexpr int directions[8][2] = {
+            {-1, 0}, {1, 0}, {0, -1}, {0, 1},
+            {-1, -1}, {-1, 1}, {1, -1}, {1, 1}};
+        while (!open.empty()) {
+            const int current = open.top().second;
+            open.pop();
+            if (current == goal) break;
+            const int current_x = current % kMiniMapGridSize;
+            const int current_y = current / kMiniMapGridSize;
+            for (const auto& direction : directions) {
+                const int next_x = current_x + direction[0];
+                const int next_y = current_y + direction[1];
+                if (next_x < 0 || next_x >= kMiniMapGridSize ||
+                    next_y < 0 || next_y >= kMiniMapGridSize) continue;
+                const int next = next_y * kMiniMapGridSize + next_x;
+                if (unsafe[next]) continue;
+                const float step_cost = direction[0] != 0 && direction[1] != 0
+                    ? 1.41421356f : 1.0f;
+                const float candidate = cost[current] + step_cost;
+                if (candidate >= cost[next]) continue;
+                cost[next] = candidate;
+                parent[next] = current;
+                const float dx = static_cast<float>(goal_x - next_x);
+                const float dy = static_cast<float>(goal_y - next_y);
+                open.emplace(candidate + std::sqrt(dx * dx + dy * dy), next);
+            }
+        }
+        std::vector<int> path;
+        if (start != goal && parent[goal] < 0) return path;
+        for (int cell = goal; cell >= 0; cell = parent[cell]) {
+            path.push_back(cell);
+            if (cell == start) break;
+        }
+        std::reverse(path.begin(), path.end());
+        return path;
+    };
+
+    std::vector<QVector3D> routed;
+    if (!smooth_trajectory_.empty()) routed.push_back(smooth_trajectory_.front());
+    for (std::size_t index = 1; index < smooth_trajectory_.size(); ++index) {
+        const QVector3D& previous = routed.back();
+        const QVector3D& target = smooth_trajectory_[index];
+        const int start_x = grid_x(previous.x());
+        const int start_y = grid_y(previous.y());
+        const int goal_x = grid_x(target.x());
+        const int goal_y = grid_y(target.y());
+        if (line_is_safe(start_x, start_y, goal_x, goal_y)) {
+            routed.push_back(target);
+            continue;
+        }
+        const std::vector<int> cells =
+            route_cells(start_x, start_y, goal_x, goal_y);
+        if (cells.empty()) {
+            walkability_[goal_y * kMiniMapGridSize + goal_x] = 4;
+            routed.push_back(target);
+            continue;
+        }
+        for (std::size_t cell_index = 1; cell_index < cells.size(); ++cell_index) {
+            const int cell = cells[cell_index];
+            routed.emplace_back(
+                minimap_min_x_ + (cell % kMiniMapGridSize + 0.5f) * cell_x,
+                minimap_min_y_ + (cell / kMiniMapGridSize + 0.5f) * cell_y,
+                target.z());
+        }
+    }
+    smooth_trajectory_ = std::move(routed);
 }
 
 void OpenGLWidget::renderGaussianSplats()
@@ -1279,9 +1791,10 @@ void OpenGLWidget::renderGaussianSplats()
         return;
     }
 
-    const QMatrix4x4 model_view =
-        view_matrix_ * interaction_matrix_ * scene_alignment_matrix_ *
-        model_matrix_;
+    const QMatrix4x4 model_view = path_edit_mode_
+        ? view_matrix_ * scene_alignment_matrix_ * model_matrix_
+        : view_matrix_ * interaction_matrix_ * scene_alignment_matrix_ *
+            model_matrix_;
     if (!sortAndUploadSplats(model_view)) {
         qWarning("Failed to upload depth-sorted Gaussian splats.");
         return;
@@ -1320,6 +1833,12 @@ void OpenGLWidget::renderGaussianSplats()
         "u_highlight_large_splats", highlight_large_splats_);
     splat_shader_program_->setUniformValue(
         "u_suppress_oversized_splats", suppress_oversized_splats_);
+    splat_shader_program_->setUniformValue(
+        "u_clip_above_aligned_z", path_edit_mode_);
+    splat_shader_program_->setUniformValue(
+        "u_scene_transform", scene_alignment_matrix_ * model_matrix_);
+    splat_shader_program_->setUniformValue(
+        "u_max_aligned_z", path_edit_ceiling_cutoff_);
     splat_shader_program_->setUniformValue("u_alpha_density_scale", 1.0f);
     bool inverse_ok = false;
     const QMatrix4x4 inverse_model_view = model_view.inverted(&inverse_ok);
@@ -1365,10 +1884,14 @@ void OpenGLWidget::renderTrajectory()
         trajectory_vbo_.release();
         trajectory_buffer_dirty_ = false;
     }
-    if (!trajectory_shader_program_->bind() || !trajectory_vbo_.bind()) return;
+    if (!trajectory_shader_program_->bind()) return;
+    QOpenGLVertexArrayObject::Binder trajectory_vao_binder(&trajectory_vao_);
+    if (!trajectory_vbo_.bind()) {
+        trajectory_shader_program_->release();
+        return;
+    }
 
-    const QMatrix4x4 mvp =
-        projection_matrix_ * view_matrix_ * interaction_matrix_;
+    const QMatrix4x4 mvp = activeAlignedViewProjection();
     trajectory_shader_program_->setUniformValue("u_mvp", mvp);
     trajectory_shader_program_->enableAttributeArray(0);
     trajectory_shader_program_->setAttributeBuffer(
@@ -1386,7 +1909,7 @@ void OpenGLWidget::renderTrajectory()
 
     const GLint smooth_offset = static_cast<GLint>(raw_trajectory_.size());
     trajectory_shader_program_->setUniformValue(
-        "u_color", QVector4D(0.1f, 0.9f, 1.0f, 0.95f));
+        "u_color", QVector4D(0.15f, 1.0f, 0.35f, 0.98f));
     trajectory_shader_program_->setUniformValue("u_round_point", false);
     trajectory_shader_program_->setUniformValue("u_point_size", 1.0f);
     glLineWidth(2.0f);
@@ -1394,7 +1917,13 @@ void OpenGLWidget::renderTrajectory()
                  static_cast<GLsizei>(smooth_trajectory_.size()));
     glLineWidth(1.0f);
 
+    // Point samples keep the path visible on drivers that clamp wide lines
+    // to a single pixel in core-profile OpenGL.
     trajectory_shader_program_->setUniformValue("u_round_point", true);
+    trajectory_shader_program_->setUniformValue("u_point_size", 4.0f);
+    glDrawArrays(GL_POINTS, smooth_offset,
+                 static_cast<GLsizei>(smooth_trajectory_.size()));
+
     trajectory_shader_program_->setUniformValue("u_point_size", 10.0f);
     trajectory_shader_program_->setUniformValue(
         "u_color", QVector4D(0.2f, 1.0f, 0.4f, 1.0f));
@@ -1419,11 +1948,18 @@ void OpenGLWidget::resizeGL(int width, int height)
     glViewport(0, 0, width, height);
 
     projection_matrix_.setToIdentity();
-    projection_matrix_.perspective(
-        45.0f,
-        static_cast<float>(width) / static_cast<float>(std::max(1, height)),
-        0.01f,
-        1000.0f);
+    const float aspect =
+        static_cast<float>(width) / static_cast<float>(std::max(1, height));
+    if (path_edit_mode_) {
+        projection_matrix_.ortho(
+            -path_edit_ortho_half_height_ * aspect,
+             path_edit_ortho_half_height_ * aspect,
+            -path_edit_ortho_half_height_, path_edit_ortho_half_height_,
+            0.01f, 1000.0f);
+    } else {
+        projection_matrix_.perspective(
+            vertical_field_of_view_degrees_, aspect, 0.01f, 1000.0f);
+    }
 }
 
 void OpenGLWidget::paintGL()
@@ -1437,6 +1973,9 @@ void OpenGLWidget::paintGL()
     glEnable(GL_BLEND);
     glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
     renderGaussianSplats();
+    // Draw the trajectory as an always-visible diagnostic overlay until its
+    // scene alignment and height have been visually verified.
+    glDisable(GL_DEPTH_TEST);
     renderTrajectory();
     glDisable(GL_BLEND);
     glDepthMask(GL_TRUE);
@@ -1445,9 +1984,289 @@ void OpenGLWidget::paintGL()
     painter.setRenderHint(QPainter::Antialiasing);
 
     if (viewport_overlay_enabled_) paintDemoScene(painter);
+    paintSemanticObjects(painter);
+    paintNavigationPlan(painter);
+    paintWalkableCells(painter);
+    paintFreeZone(painter);
+    paintManualPath(painter);
     paintMiniMap(painter);
     OrientationGizmo::paint(
         painter, size(), yaw_degrees_, pitch_degrees_, z_up_gizmo_);
+}
+
+void OpenGLWidget::setWalkableCells(
+    const std::set<std::pair<int, int>>& cells, float cell_size, float floor_z,
+    float angle_radians)
+{
+    walkable_cells_ = cells;
+    walkable_cell_size_ = cell_size;
+    walkable_floor_z_ = floor_z;
+    walkable_grid_angle_radians_ = angle_radians;
+    update();
+}
+
+void OpenGLWidget::setWalkableCellsVisible(bool visible)
+{
+    walkable_cells_visible_ = visible;
+    update();
+}
+
+void OpenGLWidget::paintWalkableCells(QPainter& painter)
+{
+    if (!walkable_cells_visible_ || walkable_cells_.empty()) return;
+    const QMatrix4x4 vp = activeAlignedViewProjection();
+    painter.save();
+    painter.setPen(QPen(QColor(25, 120, 105, 190), 1.0));
+    painter.setBrush(QColor(40, 215, 170, 85));
+    for (const auto& cell : walkable_cells_) {
+        QPolygonF polygon;
+        const float x = cell.first * walkable_cell_size_;
+        const float y = cell.second * walkable_cell_size_;
+        const float cosine = std::cos(walkable_grid_angle_radians_);
+        const float sine = std::sin(walkable_grid_angle_radians_);
+        const auto rotate = [&](float gx, float gy) {
+            return QVector3D(cosine * gx - sine * gy,
+                             sine * gx + cosine * gy, walkable_floor_z_);
+        };
+        const QVector3D corners[4] = {rotate(x,y),
+            rotate(x+walkable_cell_size_,y),
+            rotate(x+walkable_cell_size_,y+walkable_cell_size_),
+            rotate(x,y+walkable_cell_size_)};
+        bool visible = true;
+        for (const QVector3D& corner : corners) {
+            const QVector4D clip = vp * QVector4D(corner, 1.0f);
+            if (clip.w() <= 0.0f) { visible = false; break; }
+            const QVector3D ndc = clip.toVector3DAffine();
+            polygon << QPointF((ndc.x() * .5f + .5f) * width(),
+                (1.0f - (ndc.y() * .5f + .5f)) * height());
+        }
+        if (visible) painter.drawPolygon(polygon);
+    }
+    painter.restore();
+}
+
+void OpenGLWidget::paintFreeZone(QPainter& painter)
+{
+    if (free_zone_vertices_.empty() && completed_free_zone_polygons_.empty()) return;
+    const QMatrix4x4 view_projection = activeAlignedViewProjection();
+    const auto project = [&](const std::vector<QVector3D>& vertices) {
+        QPolygonF polygon;
+        for (const QVector3D& point : vertices) {
+            const QVector4D clip = view_projection * QVector4D(point, 1.0f);
+            if (clip.w() <= 0.0f) return QPolygonF();
+            const QVector3D ndc = clip.toVector3DAffine();
+            polygon << QPointF((ndc.x() * 0.5f + 0.5f) * width(),
+                (1.0f - (ndc.y() * 0.5f + 0.5f)) * height());
+        }
+        return polygon;
+    };
+    const QPolygonF polygon = project(free_zone_vertices_);
+    painter.save();
+    painter.setRenderHint(QPainter::Antialiasing);
+    QPainterPath merged;
+    merged.setFillRule(Qt::WindingFill);
+    for (const auto& vertices : completed_free_zone_polygons_) {
+        const QPolygonF completed = project(vertices);
+        if (completed.size() >= 3) {
+            QPainterPath component; component.addPolygon(completed); component.closeSubpath();
+            merged = merged.isEmpty() ? component : merged.united(component);
+        }
+    }
+    if (free_zone_closed_ && polygon.size() >= 3) {
+        QPainterPath component; component.addPolygon(polygon); component.closeSubpath();
+        merged = merged.isEmpty() ? component : merged.united(component);
+    }
+    if (!merged.isEmpty()) {
+        painter.setPen(QPen(QColor(65, 225, 180), 3.0));
+        painter.setBrush(QColor(45, 205, 155, 55));
+        painter.drawPath(merged);
+    }
+    if (!free_zone_closed_ && polygon.size() >= 2) {
+        painter.setPen(QPen(QColor(65, 225, 180), 3.0, Qt::DashLine,
+                            Qt::RoundCap, Qt::RoundJoin));
+        painter.setBrush(Qt::NoBrush);
+        painter.drawPolyline(polygon);
+    }
+    for (int i = 0; i < polygon.size(); ++i) {
+        const bool selected = i == selected_free_zone_vertex_;
+        painter.setPen(QPen(Qt::white, 1.5));
+        painter.setBrush(selected ? QColor(255, 205, 45) : QColor(65, 225, 180));
+        painter.drawEllipse(polygon[i], selected ? 7.0 : 5.0,
+                            selected ? 7.0 : 5.0);
+    }
+    painter.restore();
+}
+
+void OpenGLWidget::paintNavigationPlan(QPainter& painter)
+{
+    if (navigation_plan_.empty() || !has_navigation_target_) return;
+    const QMatrix4x4 view_projection = activeAlignedViewProjection();
+    painter.save();
+    painter.setRenderHint(QPainter::Antialiasing);
+
+    painter.setPen(QPen(QColor(50, 210, 245), 5.0,
+                        Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    painter.setBrush(Qt::NoBrush);
+    std::optional<QPointF> previous;
+    std::optional<QPointF> route_end;
+    for (const QVector3D& point : navigation_plan_) {
+        const QVector4D clip = view_projection * QVector4D(point, 1.0f);
+        if (clip.w() <= 0.0f) {
+            previous.reset();
+            continue;
+        }
+        const QVector3D ndc = clip.toVector3DAffine();
+        const QPointF projected((ndc.x() * 0.5f + 0.5f) * width(),
+            (1.0f - (ndc.y() * 0.5f + 0.5f)) * height());
+        if (previous) painter.drawLine(*previous, projected);
+        previous = projected;
+        route_end = projected;
+    }
+
+    if (!navigation_target_tag_visible_) {
+        painter.restore();
+        return;
+    }
+
+    const QVector4D target_clip =
+        view_projection * QVector4D(navigation_target_, 1.0f);
+    if (target_clip.w() <= 0.0f) {
+        painter.restore();
+        return;
+    }
+    const QVector3D target_ndc = target_clip.toVector3DAffine();
+    const QPointF destination(
+        (target_ndc.x() * 0.5f + 0.5f) * width(),
+        (1.0f - (target_ndc.y() * 0.5f + 0.5f)) * height());
+
+    // The route ends at a safe observation position; the target marker belongs
+    // on the semantic object itself.
+    if (route_end) {
+        painter.setPen(QPen(QColor(50, 210, 245), 2.0));
+        painter.setBrush(QColor(20, 90, 110));
+        painter.drawEllipse(*route_end, 5.0, 5.0);
+    }
+    painter.setPen(QPen(Qt::white, 2.0));
+    painter.setBrush(QColor(245, 75, 85));
+    painter.drawEllipse(destination, 8.0, 8.0);
+    if (!navigation_destination_name_.isEmpty()) {
+        QFont tag_font = painter.font();
+        tag_font.setBold(true);
+        painter.setFont(tag_font);
+
+        const QString label = "TARGET  \u00b7  " + navigation_destination_name_;
+        QRectF box = painter.fontMetrics().boundingRect(label)
+                         .adjusted(-10.0, -6.0, 10.0, 6.0);
+        box.moveBottomLeft(destination + QPointF(13.0, -10.0));
+
+        // Keep the complete tag visible when the target is close to an edge.
+        constexpr qreal margin = 8.0;
+        if (box.right() > width() - margin)
+            box.moveRight(width() - margin);
+        if (box.left() < margin) box.moveLeft(margin);
+        if (box.top() < margin) box.moveTop(margin);
+        if (box.bottom() > height() - margin)
+            box.moveBottom(height() - margin);
+
+        painter.setPen(QPen(QColor(245, 75, 85), 2.0));
+        painter.drawLine(destination, QPointF(box.left(), box.center().y()));
+        painter.setPen(QPen(QColor(255, 125, 130), 1.5));
+        painter.setBrush(QColor(35, 20, 23, 235));
+        painter.drawRoundedRect(box, 5.0, 5.0);
+        painter.setPen(Qt::white);
+        painter.drawText(box, Qt::AlignCenter, label);
+    }
+    painter.restore();
+}
+
+void OpenGLWidget::paintSemanticObjects(QPainter& painter)
+{
+    if (!semantic_objects_visible_) return;
+    static constexpr int edges[12][2] = {
+        {0,1},{0,2},{0,4},{1,3},{1,5},{2,3},
+        {2,6},{3,7},{4,5},{4,6},{5,7},{6,7}};
+    const QMatrix4x4 world_to_clip = activeAlignedViewProjection() *
+        sceneWorldToAlignedTransform();
+    painter.save();
+    painter.setRenderHint(QPainter::Antialiasing);
+    for (const SemanticObject& object : semantic_objects_) {
+        if (semantic_selected_only_ && object.id != selected_semantic_object_id_)
+            continue;
+        if (!semantic_class_filter_.isEmpty() &&
+            !object.name.contains(semantic_class_filter_, Qt::CaseInsensitive))
+            continue;
+        QPointF points[8];
+        bool valid = true;
+        for (int corner = 0; corner < 8; ++corner) {
+            const QVector3D p(
+                corner & 1 ? object.bounds_max_world.x() : object.bounds_min_world.x(),
+                corner & 2 ? object.bounds_max_world.y() : object.bounds_min_world.y(),
+                corner & 4 ? object.bounds_max_world.z() : object.bounds_min_world.z());
+            const QVector4D clip = world_to_clip * QVector4D(p, 1.0f);
+            if (clip.w() <= 0.0f) { valid = false; break; }
+            const QVector3D ndc = clip.toVector3DAffine();
+            points[corner] = QPointF(
+                (ndc.x() * 0.5f + 0.5f) * width(),
+                (1.0f - (ndc.y() * 0.5f + 0.5f)) * height());
+        }
+        if (!valid) continue;
+        QColor color(155, 160, 168);
+        if (object.review == SemanticReviewStatus::Confirmed) color = QColor(55, 220, 105);
+        else if (object.review == SemanticReviewStatus::Uncertain) color = QColor(255, 195, 55);
+        else if (object.review == SemanticReviewStatus::Incorrect) color = QColor(245, 75, 75);
+        const bool selected = object.id == selected_semantic_object_id_;
+        if (selected) color = QColor(60, 225, 235);
+        painter.setPen(QPen(color, selected ? 3.0 : 1.5));
+        for (const auto& edge : edges) painter.drawLine(points[edge[0]], points[edge[1]]);
+        QPointF label = points[0];
+        for (int i = 1; i < 8; ++i) {
+            if (points[i].y() < label.y()) label = points[i];
+        }
+        const QString text = QString("%1  [#%2]").arg(object.name).arg(object.id);
+        const QRectF text_bounds = painter.fontMetrics().boundingRect(text).adjusted(-5,-3,5,3);
+        QRectF background(label + QPointF(5, -text_bounds.height()), text_bounds.size());
+        painter.fillRect(background, QColor(20, 22, 25, 210));
+        painter.setPen(color);
+        painter.drawText(background, Qt::AlignCenter, text);
+    }
+    painter.restore();
+}
+
+void OpenGLWidget::paintManualPath(QPainter& painter)
+{
+    if (manual_path_.empty()) return;
+    const QMatrix4x4 view_projection = activeAlignedViewProjection();
+    std::vector<QPointF> screen_points;
+    screen_points.reserve(manual_path_.size());
+    for (const QVector3D& point : manual_path_) {
+        const QVector4D clip = view_projection * QVector4D(point, 1.0f);
+        if (clip.w() <= 0.0f) return;
+        const QVector3D ndc = clip.toVector3DAffine();
+        screen_points.emplace_back(
+            (ndc.x() * 0.5f + 0.5f) * width(),
+            (1.0f - (ndc.y() * 0.5f + 0.5f)) * height());
+    }
+    painter.save();
+    painter.setRenderHint(QPainter::Antialiasing);
+    if (screen_points.size() >= 2) {
+        QPainterPath path(screen_points.front());
+        for (std::size_t index = 1; index < screen_points.size(); ++index)
+            path.lineTo(screen_points[index]);
+        painter.setPen(QPen(QColor(40, 255, 95), 4.0,
+                            Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        painter.setBrush(Qt::NoBrush);
+        painter.drawPath(path);
+    }
+    for (std::size_t index = 0; index < screen_points.size(); ++index) {
+        const bool selected = static_cast<int>(index) ==
+            selected_manual_path_point_;
+        painter.setPen(QPen(QColor(255, 255, 255), 1.5));
+        painter.setBrush(selected ? QColor(255, 205, 40)
+                                  : QColor(40, 255, 95));
+        painter.drawEllipse(screen_points[index], selected ? 7.0 : 5.0,
+                            selected ? 7.0 : 5.0);
+    }
+    painter.restore();
 }
 
 void OpenGLWidget::paintMiniMap(QPainter& painter)
@@ -1488,6 +2307,27 @@ void OpenGLWidget::paintMiniMap(QPainter& painter)
 
     const float span_x = std::max(minimap_max_x_ - minimap_min_x_, 1.0e-5f);
     const float span_y = std::max(minimap_max_y_ - minimap_min_y_, 1.0e-5f);
+    // Geometry-derived diagnostic layers. Green is only a candidate free
+    // cell; red and orange represent geometry and footprint clearance.
+    painter.setPen(Qt::NoPen);
+    for (int y = 0; y < kMiniMapGridSize; ++y) {
+        for (int x = 0; x < kMiniMapGridSize; ++x) {
+            const std::uint8_t state =
+                walkability_[y * kMiniMapGridSize + x];
+            QColor color;
+            if (state == 1) color = QColor(235, 55, 55, 125);
+            else if (state == 2) color = QColor(245, 154, 45, 55);
+            else if (state == 3) color = QColor(62, 210, 112, 52);
+            else if (state == 4) color = QColor(240, 40, 220, 190);
+            else continue;
+            painter.setBrush(color);
+            painter.drawRect(QRectF(
+                map.left() + x * cell_width,
+                map.bottom() - (y + 1) * cell_height,
+                cell_width + 0.5, cell_height + 0.5));
+        }
+    }
+
     const auto to_map = [&](const QVector3D& position) {
         return QPointF(
             map.left() + (position.x() - minimap_min_x_) / span_x * map.width(),
@@ -1506,13 +2346,43 @@ void OpenGLWidget::paintMiniMap(QPainter& painter)
     painter.save();
     painter.setClipRect(map);
     draw_path(raw_trajectory_, QPen(QColor(220, 225, 235, 105), 1.0));
-    draw_path(smooth_trajectory_, QPen(QColor(58, 218, 238), 2.5));
+    draw_path(proposed_trajectory_, QPen(QColor(255, 205, 55, 150), 1.5));
+    draw_path(smooth_trajectory_, QPen(QColor(48, 255, 90), 3.0));
+    draw_path(manual_path_, QPen(QColor(40, 255, 110), 3.5));
+    draw_path(navigation_plan_, QPen(QColor(50, 210, 245), 4.0));
     if (!smooth_trajectory_.empty()) {
         painter.setPen(QPen(QColor(255, 255, 255, 190), 1.0));
         painter.setBrush(QColor(71, 215, 120));
         painter.drawEllipse(to_map(smooth_trajectory_.front()), 4.0, 4.0);
         painter.setBrush(QColor(245, 86, 86));
         painter.drawEllipse(to_map(smooth_trajectory_.back()), 4.0, 4.0);
+    }
+    if (!manual_path_.empty()) {
+        const QPointF destination = to_map(manual_path_.back());
+        painter.setPen(QPen(QColor(255, 255, 255), 2.0));
+        painter.setBrush(QColor(230, 45, 65));
+        painter.drawEllipse(destination, 6.0, 6.0);
+        painter.setPen(QColor(255, 255, 255));
+        painter.drawText(QRectF(destination.x() - 6.0,
+                                destination.y() - 6.0, 12.0, 12.0),
+                         Qt::AlignCenter, "D");
+    }
+    if (!navigation_plan_.empty()) {
+        const QPointF start = to_map(navigation_plan_.front());
+        const QPointF destination = to_map(navigation_plan_.back());
+        painter.setPen(QPen(QColor(255, 255, 255), 2.0));
+        painter.setBrush(QColor(45, 205, 105));
+        painter.drawEllipse(start, 6.0, 6.0);
+        painter.setPen(QColor(255, 255, 255));
+        painter.drawText(QRectF(start.x() - 6.0, start.y() - 6.0,
+                                12.0, 12.0), Qt::AlignCenter, "S");
+        painter.setPen(QPen(QColor(255, 255, 255), 2.0));
+        painter.setBrush(QColor(245, 75, 85));
+        painter.drawEllipse(destination, 6.0, 6.0);
+        painter.setPen(QColor(255, 255, 255));
+        painter.drawText(QRectF(destination.x() - 6.0,
+                                destination.y() - 6.0, 12.0, 12.0),
+                         Qt::AlignCenter, "D");
     }
     painter.restore();
 

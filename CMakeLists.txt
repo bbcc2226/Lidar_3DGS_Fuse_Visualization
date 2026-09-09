@@ -85,12 +85,19 @@ add_executable(${PROJECT_NAME}_qt_viewer
         src/app/MainWindow.h
         src/app/ViewerController.cpp
         src/app/ViewerController.h
+        src/app/RobotPathPlayer.cpp
+        src/app/RobotPathPlayer.h
+        src/app/SemanticObject.h
         src/renderer/OpenGLWidget.cpp
         src/renderer/OpenGLWidget.h
         src/renderer/OrientationGizmo.cpp
         src/renderer/OrientationGizmo.h
         src/processing/3dgsProcessing.cpp
         src/processing/3dgsProcessing.h
+        src/processing/TrajectoryProcessing.cpp
+        include/TrajectoryProcessing.h
+        src/processing/NavigationIntentParser.cpp
+        include/NavigationIntentParser.h
 )
 
 target_include_directories(${PROJECT_NAME}_qt_viewer
@@ -98,15 +105,22 @@ target_include_directories(${PROJECT_NAME}_qt_viewer
         ${CMAKE_CURRENT_SOURCE_DIR}/src/app
         ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer
         ${CMAKE_CURRENT_SOURCE_DIR}/src/processing
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/3rd_party/sophus
 )
 
 target_link_libraries(${PROJECT_NAME}_qt_viewer
         PRIVATE
         Threads::Threads
+        Eigen3::Eigen
         Qt5::Core
         Qt5::Gui
         Qt5::Widgets
         Qt5::OpenGL
+)
+
+target_compile_definitions(${PROJECT_NAME}_qt_viewer
+        PRIVATE PROJECT_ROOT_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
 )
 
 enable_testing()
