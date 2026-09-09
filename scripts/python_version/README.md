@@ -3,13 +3,146 @@
 This pipeline uses no COLMAP command or library. It uses OpenCV SIFT and Ceres
 local/global bundle adjustment. Synchronization is t_lidar = t_image - 0.4 s.
 
+## Running the pipeline
+
+Run these commands from the repository root. The C++ stages require CMake,
+Eigen, OpenCV, Ceres, nlohmann-json, and yaml-cpp. The Python stages require
+Python 3 with NumPy and OpenCV; landmark diagnostic plots also require
+Matplotlib.
+
+The standard pipeline builds the two C++ executables and then runs pose
+initialization, sparse triangulation, bundle adjustment, and output validation:
+
+```bash
+bash scripts/python_version/run_pipeline.sh \
+  data output/lio_camera_pose -1
+```
+
+The positional arguments are `DATA_DIR`, `OUTPUT_DIR`, and `MAX_IMAGES`.
+Use `-1` for every available image or a small value such as `40` for a smoke
+test. The wrapper can also be launched from another directory because it
+resolves the repository root from its own location.
+
+The equivalent commands, useful when debugging one stage, are:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --target lio_camera_pose lio_bundle_adjust -j2
+./build/lio_camera_pose --data data --output output/lio_camera_pose \
+  --max-images -1 --time-offset -0.4
+python3 scripts/python_version/triangulate_sparse.py \
+  --data data --output output/lio_camera_pose --max-images -1
+./build/lio_bundle_adjust --data data --output output/lio_camera_pose
+python3 scripts/python_version/test_outputs.py \
+  --data data --output output/lio_camera_pose
+```
+
+### Incremental alternative
+
+The incremental controller is an alternative to `run_pipeline.sh`, not an
+additional required stage. Build first, then let the controller grow the
+active image set and alternate triangulation with local or global BA:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --target lio_camera_pose lio_bundle_adjust -j2
+python3 scripts/python_version/run_incremental_pipeline.py \
+  --data data --output output/lio_camera_pose_incremental --max-images -1
+```
+
+Use `--resume` to continue an interrupted incremental output. A clean run
+should use a new output directory; the feature and pair caches are stored
+under `<output>/cache`.
+
+### Optional post-processing
+
+After either reconstruction path, diagnose landmark support and optionally
+export a filtered 3DGS dataset:
+
+```bash
+python3 scripts/python_version/diagnose_landmarks.py \
+  --data data --input output/lio_camera_pose \
+  --output output/lio_camera_pose/landmark_diagnostics
+python3 scripts/python_version/export_filtered_3dgs.py \
+  --input output/lio_camera_pose --images data/undistorted \
+  --diagnostics output/lio_camera_pose/landmark_diagnostics \
+  --output output/lio_camera_pose_3dgs --exclude-zero
+```
+
+An incremental run with a feature cache can extend existing tracks, then run
+BA again on the extended output:
+
+```bash
+python3 scripts/python_version/extend_tracks.py \
+  --data data --input output/lio_camera_pose_incremental \
+  --output output/lio_camera_pose_extended \
+  --cache-source output/lio_camera_pose_incremental/cache
+./build/lio_bundle_adjust --data data \
+  --output output/lio_camera_pose_extended
+```
+
+For targeted PnP recovery, create a text file containing whitespace-separated
+zero-based frame indices, then run recovery and BA:
+
+```bash
+python3 scripts/python_version/recover_weak_frames.py \
+  --data data --input output/lio_camera_pose_incremental \
+  --output output/lio_camera_pose_recovered \
+  --intrinsics output/lio_camera_pose_incremental/intrinsics_refined.txt \
+  --cache-source output/lio_camera_pose_incremental/cache \
+  --target-frames-file weak_frames.txt
+./build/lio_bundle_adjust --data data \
+  --output output/lio_camera_pose_recovered
+```
+
+### Optional depth and dense products
+
+These stages use an optimized reconstruction but are independent of landmark
+diagnosis and filtering. Package the existing local LiDAR depth maps directly:
+
+```bash
+python3 scripts/python_version/prepare_depth_supervision.py \
+  --data data --reconstruction output/lio_camera_pose \
+  --output output/depth_supervision
+```
+
+Or first complete them with nearby global LiDAR sweeps, then optionally add a
+conservative low-confidence floor plane:
+
+```bash
+python3 scripts/python_version/generate_global_lidar_depth.py \
+  --data data --reconstruction output/lio_camera_pose \
+  --local-depth data/depth_maps --output output/depth_global
+python3 scripts/python_version/add_floor_plane_depth.py \
+  --data data --reconstruction output/lio_camera_pose \
+  --input-depth output/depth_global --output output/depth_with_floor
+```
+
+Two independent dense point-cloud options are available. Fuse supplied depth
+maps, or triangulate optical flow between nearby images:
+
+```bash
+python3 scripts/python_version/fuse_dense_cloud.py \
+  --data data \
+  --poses output/lio_camera_pose/poses_optimized_tum.txt \
+  --output output/lio_camera_pose/dense_fused.ply
+python3 scripts/python_version/dense_mvs_triangulate.py \
+  --data data \
+  --poses output/lio_camera_pose/poses_optimized_tum.txt \
+  --output output/lio_camera_pose/dense_mvs.ply
+```
+
+Every Python command supports `--help`. Output directories should be distinct
+between experiments because several stages intentionally overwrite their own
+metrics and intermediate files.
+
 Run every image:
 
-    ./standalone/run_pipeline.sh data output/lio_camera_pose -1
+    bash scripts/python_version/run_pipeline.sh data output/lio_camera_pose -1
 
 Run a 40-image smoke test:
 
-    ./standalone/run_pipeline.sh data output/lio_camera_pose_smoke 40
+    bash scripts/python_version/run_pipeline.sh data output/lio_camera_pose_smoke 40
 
 Stages: continuous LIO interpolation, calibrated camera initialization,
 temporal SIFT matching, prior-pose epipolar verification, multi-view tracks,
@@ -45,7 +178,7 @@ remains one-to-one per frame and must survive multi-view re-triangulation and
 reprojection cleanup. The metrics separate pose-prior and visual-only
 additions. For example:
 
-    python3 standalone/extend_tracks.py --data data \
+    python3 scripts/python_version/extend_tracks.py --data data \
       --input output/lio_camera_pose_incremental_v2 \
       --output output/lio_camera_pose_extended \
       --cache-source output/lio_camera_pose_incremental_v2/cache \
@@ -109,7 +242,7 @@ The incremental controller follows this registration flow:
 
 Run all images:
 
-    ./standalone/run_incremental_pipeline.py --data data \
+    python3 scripts/python_version/run_incremental_pipeline.py --data data \
       --output output/lio_camera_pose_incremental --max-images -1
 
 Useful controls include `--bootstrap`, `--batch-size`, `--recent-window`,
@@ -140,5 +273,5 @@ length and maximum parallax; reprojection remains the primary constraint.
 
 Use a new output directory for a clean full run:
 
-    python3 standalone/run_incremental_pipeline.py --data data \
+    python3 scripts/python_version/run_incremental_pipeline.py --data data \
       --output output/lio_camera_pose_incremental_v2 --max-images -1

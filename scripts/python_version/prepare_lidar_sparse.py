@@ -41,7 +41,9 @@ def write_points3d(source: Path, destination: Path) -> int:
     with source.open() as input_file, destination.open("w") as output_file:
         output_file.write("# 3D point list with one line of data per point:\n")
         output_file.write("# POINT3D_ID, X, Y, Z, R, G, B, ERROR, TRACK[]\n")
-        output_file.write("# LiDAR initialization points intentionally have empty tracks.\n")
+        output_file.write(
+            "# LiDAR initialization points intentionally have empty tracks.\n"
+        )
         for line in input_file:
             if not line.strip() or line.lstrip().startswith("#"):
                 continue
@@ -50,9 +52,7 @@ def write_points3d(source: Path, destination: Path) -> int:
                 raise ValueError(f"Malformed LiDAR point line: {line[:120]}")
             x, y, z, red, green, blue = fields[:6]
             count += 1
-            output_file.write(
-                f"{count} {x} {y} {z} {red} {green} {blue} 0\n"
-            )
+            output_file.write(f"{count} {x} {y} {z} {red} {green} {blue} 0\n")
     return count
 
 
