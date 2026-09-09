@@ -637,9 +637,9 @@ TEST(SIFTTest, LandmarkTrackerUsingPriorPose)
     ASSERT_FALSE(accepted_pairs.empty())
         << "No camera pair produced any triangulations that survived the prior-pose geometric filters.";
 
-    std::map<FeatureNode, FeatureNode> parent;
-    std::map<FeatureNode, int> rank;
-    std::map<int, std::vector<FeatureNode>> camera_feature_nodes;
+    std::unordered_map<FeatureNode, FeatureNode, FeatureNodeHash> parent;
+    std::unordered_map<FeatureNode, int, FeatureNodeHash> rank;
+    std::unordered_map<int, std::vector<FeatureNode>> camera_feature_nodes;
     for (const PairResult& pair_result : accepted_pairs)
     {
         std::vector<uchar> inlier_mask(pair_result.usable_matches.size(), 1);

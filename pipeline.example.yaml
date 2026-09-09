@@ -1,0 +1,87 @@
+inputs:
+  timestamp_file: data/timestamps.txt
+  image_directory: data/undistorted
+  intrinsics_file: data/intrinsics.txt
+  extrinsic_file: data/tuned_camera_lidar_extrinsic.json
+  trajectory_file: data/key_frames.jsonl
+output_directory: output/lio_visual_ba_cpp
+image_width: 1596
+image_height: 1197
+camera_time_offset_seconds: -0.4
+random_seed: 0
+maximum_cpu_threads: 4
+# -1 loads all accepted images; positive values cap the accepted count.
+maximum_images: -1
+skip_missing_images: true
+require_strictly_increasing_timestamps: true
+
+features:
+  maximum_sift_features: 6000
+  grid_columns: 8
+  grid_rows: 6
+  minimum_core_features_per_cell: 20
+  maximum_supplemental_features_per_cell: 40
+
+matching:
+  ratio_threshold: 0.75
+  require_mutual_match: false
+  maximum_sampson_error_pixels: 4.0
+  ransac_threshold_pixels: 4.0
+  minimum_inliers: 20
+  minimum_inlier_ratio: 0.25
+  require_visual_geometry: false
+
+pairs:
+  maximum_temporal_gap: 6
+  minimum_loop_separation: 20
+  maximum_loop_distance: 0.5
+  maximum_loops_per_frame: 3
+
+recovery:
+  enabled: true
+  target_track_observations: 50
+  target_occupied_grid_cells: 16
+  minimum_track_length: 4
+  temporal_gap: 20
+  spatial_distance: 1.0
+  spatial_pairs_per_frame: 8
+  maximum_view_angle_degrees: 60.0
+
+track_extension:
+  enabled: true
+  search_radius_pixels: 18.0
+  weak_search_radius_pixels: 60.0
+  descriptor_ratio: 0.82
+  descriptor_maximum: 240.0
+  epipolar_error_pixels: 1.25
+  final_reprojection_error_pixels: 2.0
+  maximum_depth: 30.0
+  weak_landmarks_per_camera: 50
+
+pnp_recovery:
+  enabled: true
+  neighbor_gap: 10
+  reprojection_error_pixels: 3.0
+  minimum_inliers: 6
+
+staged_rebuild:
+  enabled: true
+
+mapping:
+  minimum_track_length: 3
+  minimum_supplemental_track_length: 4
+  maximum_landmarks: 24000
+  minimum_landmarks_per_camera: 20
+  minimum_parallax_degrees: 0.5
+  minimum_three_view_core_parallax_degrees: 0.75
+  maximum_reprojection_error_pixels: 4.0
+  prune_inconsistent_observations: true
+  observation_pruning_multiplier: 2.0
+
+optimization:
+  minimum_registered_cameras: 2
+  global_interval: 100
+  local_window_cameras: 15
+  maximum_iterations: 100
+  outlier_threshold_pixels: 2.0
+  cleanup_cycles: 3

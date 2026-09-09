@@ -1,29 +1,31 @@
-//
-// Created by chuchu on 8/5/26.
-//
-
-// src/main.cpp
-
 #include <iostream>
 #include <string>
 
-#include "BundleAdjustment.h"
+#include "pipeline.hpp"
 
-int main()
+int main(int argc, char** argv)
 {
-    // config.yaml's paths (e.g. "../data/...") are relative to the working
-    // directory, so this must be run from the build/ directory (same
-    // convention as the tests).
-    const std::string config_path = "../src/config.yaml";
-
-    BundleAdjustment bundle_adjustment(config_path);
-    Status status = bundle_adjustment.Run();
-
-    if (!status.success) {
-        std::cerr << "Bundle adjustment failed: " << status.message << std::endl;
+    if (argc != 3 || std::string(argv[1]) != "--config")
+    {
+        std::cerr << "usage: lio_visual_ba_pipeline --config PIPELINE.yaml\n";
+        return 2;
+    }
+    auto config = lio_visual_ba::Pipeline::LoadPipelineConfig(argv[2]);
+    if (!config.ok())
+    {
+        std::cerr << config.status().ToString() << '\n';
         return 1;
     }
-
-    std::cout << "Bundle adjustment finished: " << status.message << std::endl;
+    auto result = lio_visual_ba::Pipeline::RunPipeline(config.value());
+    if (!result.ok())
+    {
+        std::cerr << result.status().ToString() << '\n';
+        return 1;
+    }
+    std::cout << "C++ sparse reconstruction complete\n"
+              << "  cameras: " << result.value().backend.reconstruction.cameras.size() << '\n'
+              << "  landmarks: " << result.value().backend.reconstruction.landmarks.size() << '\n'
+              << "  verified matches: " << result.value().verified_matches << '\n'
+              << "  output: " << config.value().output_directory << '\n';
     return 0;
 }

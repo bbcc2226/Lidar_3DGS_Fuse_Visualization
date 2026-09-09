@@ -4,4 +4,7 @@ build/
 data/
 *.png
 *.pyc
+/output/*
+
+
 
