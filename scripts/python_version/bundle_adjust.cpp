@@ -239,6 +239,17 @@ struct IntrinsicPriorResidual {
     }
 };
 
+// Residual weights are 1/sigma: translation in 1/m, rotation in 1/rad. Set from CLI.
+double g_translation_prior_weight = 2.0;
+double g_rotation_prior_weight = 10.0;
+// Huber(1.0) turns linear beyond 1/weight, so a robust prior cannot be made strong.
+bool g_robust_pose_prior = true;
+
+ceres::LossFunction* pose_prior_loss()
+{
+    return g_robust_pose_prior ? new ceres::HuberLoss(1.0) : nullptr;
+}
+
 struct TranslationPriorResidual {
     double x;
     double y;
@@ -341,14 +352,14 @@ void run_local_bundle_adjustment(
 
         problem.AddResidualBlock(
             new ceres::AutoDiffCostFunction<TranslationPriorResidual, 3, 3>(
-                new TranslationPriorResidual{cameras[i].pt[0], cameras[i].pt[1], cameras[i].pt[2], 2.0}),
-            new ceres::HuberLoss(1.0),
+                new TranslationPriorResidual{cameras[i].pt[0], cameras[i].pt[1], cameras[i].pt[2], g_translation_prior_weight}),
+            pose_prior_loss(),
             cameras[i].t);
 
         problem.AddResidualBlock(
             new ceres::AutoDiffCostFunction<RotationPriorResidual, 3, 4>(
-                new RotationPriorResidual{cameras[i].pq[0], cameras[i].pq[1], cameras[i].pq[2], cameras[i].pq[3], 10.0}),
-            new ceres::HuberLoss(1.0),
+                new RotationPriorResidual{cameras[i].pq[0], cameras[i].pq[1], cameras[i].pq[2], cameras[i].pq[3], g_rotation_prior_weight}),
+            pose_prior_loss(),
             cameras[i].q);
     }
 
@@ -430,9 +441,9 @@ void run_intrinsic_bundle_adjustment(std::vector<CameraState>& cameras,
     for(auto& c:cameras) {
         problem.AddParameterBlock(c.q,4,new ceres::QuaternionManifold); problem.AddParameterBlock(c.t,3);
         problem.AddResidualBlock(new ceres::AutoDiffCostFunction<TranslationPriorResidual,3,3>(
-            new TranslationPriorResidual{c.pt[0],c.pt[1],c.pt[2],2.0}),new ceres::HuberLoss(1.0),c.t);
+            new TranslationPriorResidual{c.pt[0],c.pt[1],c.pt[2],g_translation_prior_weight}),pose_prior_loss(),c.t);
         problem.AddResidualBlock(new ceres::AutoDiffCostFunction<RotationPriorResidual,3,4>(
-            new RotationPriorResidual{c.pq[0],c.pq[1],c.pq[2],c.pq[3],10.0}),new ceres::HuberLoss(1.0),c.q);
+            new RotationPriorResidual{c.pq[0],c.pq[1],c.pq[2],c.pq[3],g_rotation_prior_weight}),pose_prior_loss(),c.q);
     }
     std::vector<char> used(points.size(),false);
     for(const auto& o:observations) if(o.p>=0&&o.p<(int)points.size()&&o.f>=0&&o.f<(int)cameras.size()) {
@@ -658,8 +669,22 @@ Json select_landmarks_for_ba(
     return stats;
 }
 
+std::pair<int, int> read_png_size(const fs::path& path) {
+    std::ifstream in(path, std::ios::binary);
+    unsigned char header[24];
+    if (!in.read(reinterpret_cast<char*>(header), sizeof(header)) ||
+        std::string(reinterpret_cast<char*>(header), 8) != "\x89PNG\r\n\x1a\n" ||
+        std::string(reinterpret_cast<char*>(header) + 12, 4) != "IHDR")
+        throw std::runtime_error("Cannot read PNG dimensions from " + path.string());
+    auto be32 = [&](int o) {
+        return (header[o] << 24) | (header[o + 1] << 16) | (header[o + 2] << 8) | header[o + 3];
+    };
+    return {be32(16), be32(20)};
+}
+
 void save_outputs(
     const fs::path& output_dir,
+    const fs::path& data_dir,
     std::vector<CameraState>& cameras,
     std::vector<Point3D>& points,
     const std::vector<Observation>& observations,
@@ -674,7 +699,9 @@ void save_outputs(
     std::ofstream points_file(output_dir / "sparse" / "0" / "points3D.txt");
     std::ofstream ply_file(output_dir / "landmarks_optimized.ply");
 
-    cameras_file << "1 PINHOLE 1596 1197 " << K(0, 0) << ' ' << K(1, 1) << ' ' << K(0, 2) << ' ' << K(1, 2) << '\n';
+    const auto [width, height] = read_png_size(data_dir / "undistorted" / cameras.front().name);
+    cameras_file << "1 PINHOLE " << width << ' ' << height << ' '
+                 << K(0, 0) << ' ' << K(1, 1) << ' ' << K(0, 2) << ' ' << K(1, 2) << '\n';
 
     std::vector<std::vector<const Observation*>> image_observations(cameras.size());
     std::vector<std::vector<std::pair<int, int>>> point_tracks(points.size());
@@ -786,11 +813,19 @@ int main(int argc, char** argv)
                 max_landmarks = std::stoi(argv[++i]);
             } else if (arg == "--min-landmarks-per-image") {
                 min_landmarks_per_image = std::stoi(argv[++i]);
+            } else if (arg == "--translation-prior-weight") {
+                g_translation_prior_weight = std::stod(argv[++i]);
+            } else if (arg == "--rotation-prior-weight") {
+                g_rotation_prior_weight = std::stod(argv[++i]);
+            } else if (arg == "--no-robust-pose-prior") {
+                g_robust_pose_prior = false;
             }
         }
         if (!(max_reprojection_error > 0.0) || cleanup_iterations < 0 ||
             max_landmarks < 0 || min_landmarks_per_image < 0)
             throw std::runtime_error("cleanup threshold must be positive and iterations non-negative");
+        if (!(g_translation_prior_weight > 0.0) || !(g_rotation_prior_weight > 0.0))
+            throw std::runtime_error("pose prior weights must be positive");
 
         if (intrinsics_path.empty()) intrinsics_path = data_dir / "intrinsics.txt";
         Mat3 K = read_intrinsics(intrinsics_path);
@@ -884,6 +919,14 @@ int main(int argc, char** argv)
         const double reprojection_p90 = quantile(reprojection_errors, 0.9);
         const double reprojection_p95 = quantile(reprojection_errors, 0.95);
         const double reprojection_max = quantile(reprojection_errors, 1.0);
+        double time_offset_seconds = 0.0;
+        std::ifstream initialization_metrics_file(output_dir / "metrics.json");
+        if (initialization_metrics_file) {
+            Json initialization_metrics;
+            initialization_metrics_file >> initialization_metrics;
+            if (initialization_metrics.contains("time_offset_seconds"))
+                time_offset_seconds = initialization_metrics["time_offset_seconds"].get<double>();
+        }
 
         Json metrics = {
             {"pass", false},
@@ -905,7 +948,10 @@ int main(int argc, char** argv)
             {"heldout_epipolar_p90_px", quantile(heldout_errors, 0.9)},
             {"lio_translation_delta_median_m", quantile(translation_deltas, 0.5)},
             {"lio_rotation_delta_median_deg", quantile(rotation_deltas, 0.5)},
-            {"time_offset_seconds", -0.4},
+            {"time_offset_seconds", time_offset_seconds},
+            {"translation_prior_weight", g_translation_prior_weight},
+            {"rotation_prior_weight", g_rotation_prior_weight},
+            {"robust_pose_prior", g_robust_pose_prior},
             {"intrinsics_fx",K(0,0)}, {"intrinsics_fy",K(1,1)},
             {"intrinsics_cx",K(0,2)}, {"intrinsics_cy",K(1,2)},
             {"intrinsics_refined",staged},
@@ -923,7 +969,7 @@ int main(int argc, char** argv)
             quantile(translation_deltas, 0.5) <= 0.3 &&
             quantile(rotation_deltas, 0.5) <= 3.0;
 
-        save_outputs(output_dir, cameras, points, observations, K, metrics);
+        save_outputs(output_dir, data_dir, cameras, points, observations, K, metrics);
         std::cout << metrics.dump(2) << '\n';
         return metrics["pass"] ? 0 : 2;
     } catch (const std::exception& error) {

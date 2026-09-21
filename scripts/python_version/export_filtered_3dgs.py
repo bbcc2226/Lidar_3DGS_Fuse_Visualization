@@ -10,6 +10,18 @@ from pathlib import Path
 
 
 def main():
+    """Export a filtered COLMAP text model and linked image set for 3DGS.
+
+    Purpose:
+        Exclude cameras selected by landmark diagnostics while retaining the
+        source camera model and landmarks.
+    Inputs:
+        Command-line paths for the source model, images, diagnostics, and output,
+        plus an option to exclude cameras with zero observed landmarks.
+    Outputs:
+        Writes ``sparse/0`` model files, image symlinks, and
+        ``filter_report.json``; prints the report and returns ``None``.
+    """
     p = argparse.ArgumentParser()
     p.add_argument("--input", type=Path, required=True)
     p.add_argument("--images", type=Path, required=True)

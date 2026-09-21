@@ -15,6 +15,18 @@ from extend_tracks import ply, poses
 
 
 def main():
+    """Recover weak camera poses and observations with PnP-RANSAC.
+
+    Purpose:
+        Link cached pair matches to established landmarks, estimate target-frame
+        poses, and add geometrically verified inlier observations.
+    Inputs:
+        Command-line data, reconstruction, output, intrinsics, feature-cache,
+        and target-frame paths plus neighbor and reprojection thresholds.
+    Outputs:
+        Writes updated tracks, sparse points, initial poses, copied priors and
+        intrinsics, and ``pnp_recovery.json``; prints progress and returns ``None``.
+    """
     p = argparse.ArgumentParser()
     p.add_argument("--data", type=Path, default=Path("data"))
     p.add_argument("--input", type=Path, required=True)

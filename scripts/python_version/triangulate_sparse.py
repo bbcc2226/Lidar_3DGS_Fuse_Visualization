@@ -11,6 +11,16 @@ import numpy as np
 
 
 def read_poses(path):
+    """Read timestamp-indexed translations and quaternions from TUM poses.
+
+    Purpose:
+        Normalize pose quaternions and support timestamp-based frame association.
+    Inputs:
+        path: Path to a whitespace-delimited TUM pose file.
+    Outputs:
+        Dictionary mapping timestamps rounded to six decimals to
+        ``(translation, normalized_wxyz_quaternion)`` tuples.
+    """
     poses = {}
     with open(path) as f:
         for line in f:
@@ -27,6 +37,15 @@ def read_poses(path):
 
 
 def qrot(q):
+    """Convert a WXYZ quaternion into a rotation matrix.
+
+    Purpose:
+        Construct the camera-to-world rotation used by sparse geometry.
+    Inputs:
+        q: Four normalized quaternion components ordered as ``(w, x, y, z)``.
+    Outputs:
+        A 3x3 NumPy rotation matrix.
+    """
     w, x, y, z = q
     return np.array(
         [
@@ -38,6 +57,18 @@ def qrot(q):
 
 
 def load_frames(data, pose_file, limit):
+    """Associate available images with timestamped initialized poses.
+
+    Purpose:
+        Load the image and pose state required for feature extraction and matching.
+    Inputs:
+        data: Dataset directory containing timestamps and undistorted images.
+        pose_file: Path to the TUM trajectory used for initialization.
+        limit: Maximum frames to load; non-positive values mean no limit.
+    Outputs:
+        List of frame dictionaries containing name, timestamp, translation,
+        quaternion, rotation, and BGR image data.
+    """
     poses = read_poses(pose_file)
     frames = []
     for line in open(data / "timestamps.txt"):
@@ -56,11 +87,31 @@ def load_frames(data, pose_file, limit):
 
 
 def skew(t):
+    """Construct the skew-symmetric cross-product matrix of a vector.
+
+    Purpose:
+        Represent translation in essential/fundamental matrix calculations.
+    Inputs:
+        t: Three-element vector.
+    Outputs:
+        A 3x3 matrix such that ``skew(t) @ x`` equals ``t cross x``.
+    """
     x, y, z = t
     return np.array([[0, -z, y], [z, 0, -x], [-y, x, 0]], float)
 
 
 def fundamental(a, b, K):
+    """Compute a fundamental matrix from two initialized camera poses.
+
+    Purpose:
+        Supply pose-prior epipolar geometry for descriptor match filtering.
+    Inputs:
+        a: First frame dictionary with rotation and camera center.
+        b: Second frame dictionary in the same format.
+        K: Shared 3x3 camera intrinsic matrix.
+    Outputs:
+        A 3x3 fundamental matrix mapping pixels in ``a`` to lines in ``b``.
+    """
     R1, t1 = a["R"], a["t"]
     R2, t2 = b["R"], b["t"]
     R = R2.T @ R1
@@ -70,6 +121,17 @@ def fundamental(a, b, K):
 
 
 def sampson(p, q, F):
+    """Compute the Sampson epipolar distance for one pixel match.
+
+    Purpose:
+        Approximate geometric reprojection error for match acceptance and QA.
+    Inputs:
+        p: Two-element pixel coordinate in the first image.
+        q: Two-element pixel coordinate in the second image.
+        F: 3x3 fundamental matrix.
+    Outputs:
+        Non-negative Sampson distance in pixel units.
+    """
     x = np.array([p[0], p[1], 1.0])
     y = np.array([q[0], q[1], 1.0])
     Fx = F @ x
@@ -81,7 +143,21 @@ def sampson(p, q, F):
 
 
 def visual_fundamental(points_a, points_b, threshold, min_inliers=20, min_ratio=0.25):
-    """Robust image-only geometry used when a weak frame distrusts LIO."""
+    """Estimate robust image-only geometry for weak-frame recovery.
+
+    Purpose:
+        Fit a fundamental matrix and reject insufficient or spatially
+        concentrated inlier sets without relying on LIO poses.
+    Inputs:
+        points_a: Nx2 matched pixel coordinates in the first image.
+        points_b: Nx2 corresponding pixels in the second image.
+        threshold: Robust estimator's inlier threshold in pixels.
+        min_inliers: Minimum accepted inlier count.
+        min_ratio: Minimum accepted inlier fraction.
+    Outputs:
+        Tuple ``(F, mask)`` containing the 3x3 matrix and boolean inlier mask,
+        or ``(None, None)`` when estimation or quality checks fail.
+    """
     if len(points_a) < max(8, min_inliers):
         return None, None
     pa = np.asarray(points_a, np.float32)
@@ -96,6 +172,15 @@ def visual_fundamental(points_a, points_b, threshold, min_inliers=20, min_ratio=
         return None, None
 
     def cells(p):
+        """Count occupied cells in a normalized 4x3 image grid.
+
+        Purpose:
+            Reject image-only geometry supported by a line or small patch.
+        Inputs:
+            p: Nx2 array of inlier pixel coordinates.
+        Outputs:
+            Number of distinct normalized grid cells occupied.
+        """
         span = np.ptp(p, axis=0)
         z = (p - p.min(axis=0)) / np.maximum(span, 1.0)
         ij = np.minimum(np.floor(z * [4, 3]).astype(int), [3, 2])
@@ -107,17 +192,59 @@ def visual_fundamental(points_a, points_b, threshold, min_inliers=20, min_ratio=
 
 
 class DSU:
+    """Disjoint-set structure that prevents duplicate-frame track observations.
+
+    Purpose:
+        Merge pairwise feature matches into multi-view tracks while maintaining
+        at most one feature from each camera frame per connected component.
+    Inputs:
+        Constructed with the total number of detected feature nodes.
+    Outputs:
+        Instances expose representative lookup and conflict-aware union methods.
+    """
+
     def __init__(self, n):
+        """Initialize singleton feature components.
+
+        Purpose:
+            Allocate parent pointers and empty per-component frame membership.
+        Inputs:
+            n: Number of feature nodes.
+        Outputs:
+            Returns ``None`` after initializing the instance in place.
+        """
         self.p = list(range(n))
         self.frames = {}
 
     def find(self, x):
+        """Find a feature component's representative with path compression.
+
+        Purpose:
+            Resolve track membership efficiently across repeated match merges.
+        Inputs:
+            x: Integer feature-node index.
+        Outputs:
+            Integer representative index for the node's component.
+        """
         while self.p[x] != x:
             self.p[x] = self.p[self.p[x]]
             x = self.p[x]
         return x
 
     def union(self, a, b, frame_a, frame_b):
+        """Merge two feature components unless their frame sets conflict.
+
+        Purpose:
+            Build tracks while preventing two observations from the same frame.
+        Inputs:
+            a: First integer feature-node index.
+            b: Second integer feature-node index.
+            frame_a: Frame index associated with ``a``.
+            frame_b: Frame index associated with ``b``.
+        Outputs:
+            ``True`` if already joined or successfully merged; ``False`` when
+            the components contain overlapping camera frames.
+        """
         a, b = self.find(a), self.find(b)
         if a == b:
             return True
@@ -134,11 +261,32 @@ class DSU:
 
 
 def projection(f, K):
+    """Build a world-to-image projection matrix for one frame.
+
+    Purpose:
+        Combine the initialized camera pose with shared intrinsics for DLT.
+    Inputs:
+        f: Frame dictionary containing camera-to-world rotation and center.
+        K: 3x3 camera intrinsic matrix.
+    Outputs:
+        A 3x4 homogeneous projection matrix.
+    """
     R = f["R"].T
     return K @ np.column_stack((R, -R @ f["t"]))
 
 
 def project(f, K, x):
+    """Project one world-space point into a frame.
+
+    Purpose:
+        Evaluate positive depth and pixel reprojection during track filtering.
+    Inputs:
+        f: Frame dictionary containing camera pose.
+        K: 3x3 camera intrinsic matrix.
+        x: Three-element world-space point.
+    Outputs:
+        Two-element pixel coordinate, or ``None`` for non-positive depth.
+    """
     c = f["R"].T @ (x - f["t"])
     if c[2] <= 1e-6:
         return None
@@ -149,6 +297,20 @@ def project(f, K, x):
 def find_loop_pairs(
     frames, max_gap, min_separation, max_distance, max_per_frame, max_view_angle
 ):
+    """Select spatially and directionally compatible nonlocal image pairs.
+
+    Purpose:
+        Add bounded loop-closure candidates beyond the normal temporal window.
+    Inputs:
+        frames: Sequence of frame dictionaries with poses.
+        max_gap: Local-pair gap, retained for the caller's pairing contract.
+        min_separation: Minimum frame-index separation for loop candidates.
+        max_distance: Maximum camera-center distance in meters.
+        max_per_frame: Maximum loop candidates retained for each source frame.
+        max_view_angle: Maximum optical-axis difference in degrees.
+    Outputs:
+        Sorted list of unique ``(first_frame, second_frame)`` index pairs.
+    """
     pairs = set()
     for i, a in enumerate(frames):
         candidates = []
@@ -169,7 +331,21 @@ def find_loop_pairs(
 
 
 def frame_support(dsu, offsets, frames, grid_x=8, grid_y=6, min_track_length=4):
-    """Conservative pre-triangulation support used to trigger rescue matching."""
+    """Measure conservative pre-triangulation track support by frame.
+
+    Purpose:
+        Identify images needing rescue matching based on long-track count and
+        spatial grid coverage.
+    Inputs:
+        dsu: Feature-track disjoint-set structure.
+        offsets: Per-frame starting node offsets with a final total sentinel.
+        frames: Frame dictionaries containing images and keypoints.
+        grid_x: Number of horizontal support cells.
+        grid_y: Number of vertical support cells.
+        min_track_length: Minimum component size counted as support.
+    Outputs:
+        List of ``(supported_track_count, occupied_cell_count)`` per frame.
+    """
     component_sizes = {}
     for n in range(offsets[-1]):
         root = dsu.find(n)
@@ -203,7 +379,22 @@ def weak_recovery_pairs(
     spatial_per_frame,
     max_view_angle,
 ):
-    """Pair weak frames more widely in time and against nearby seed poses."""
+    """Choose expanded temporal and spatial pairs for weak frames.
+
+    Purpose:
+        Give under-supported images additional matching opportunities beyond the
+        normal local window while respecting distance and view direction.
+    Inputs:
+        frames: Sequence of frame dictionaries with poses.
+        weak: Iterable of weak frame indices.
+        normal_gap: Existing local temporal matching radius.
+        recovery_gap: Expanded temporal recovery radius.
+        spatial_distance: Maximum camera-center distance for spatial pairs.
+        spatial_per_frame: Maximum spatial candidates per weak frame.
+        max_view_angle: Maximum optical-axis difference in degrees.
+    Outputs:
+        Sorted list of unique recovery frame-index pairs.
+    """
     pairs = set()
     for i in weak:
         for j in range(
@@ -252,6 +443,38 @@ def triangulate(
     grid_min_sift=20,
     grid_extra_features=40,
 ):
+    """Extract, match, group, triangulate, and validate sparse feature tracks.
+
+    Purpose:
+        Build core and grid-balanced features, match local/loop/recovery pairs,
+        form conflict-free tracks, and triangulate BA-quality landmarks.
+    Inputs:
+        frames: Mutable frame dictionaries; cached keypoints/descriptors are added.
+        K: 3x3 camera intrinsic matrix.
+        max_gap: Maximum local temporal pair gap.
+        epi_px: Maximum accepted epipolar error in pixels.
+        min_parallax: Minimum general-track triangulation angle in degrees.
+        reproj_px: Median reprojection threshold in pixels.
+        loop_min_separation: Minimum loop frame-index separation.
+        loop_max_distance: Maximum loop camera-center distance in meters.
+        loop_max_per_frame: Maximum loop candidates per frame.
+        loop_max_view_angle: Maximum loop optical-axis angle in degrees.
+        cache_dir: Directory for feature and pair caches.
+        three_view_min_parallax: Minimum parallax for three-view core tracks.
+        target_landmarks: Desired supported landmarks per image.
+        target_grid_cells: Desired occupied support cells per image.
+        recovery_gap: Expanded weak-frame temporal radius.
+        recovery_spatial_distance: Weak-frame spatial radius in meters.
+        recovery_spatial_per_frame: Maximum spatial recovery pairs per frame.
+        grid_x: Horizontal feature-coverage cell count.
+        grid_y: Vertical feature-coverage cell count.
+        grid_min_sift: Core SIFT count that suppresses extra cell features.
+        grid_extra_features: Maximum supplemental corners detected per weak cell.
+    Outputs:
+        Tuple ``(points, tracks, coverage_points, heldout_matches, stats)`` where
+        point entries contain XYZ, RGB, and reprojection error and ``stats`` is
+        a metrics dictionary.
+    """
 
     sift = cv2.SIFT_create(nfeatures=6000)
     feature_cache = cache_dir / "features_v5_weak_recovery"
@@ -338,6 +561,19 @@ def triangulate(
     processed_pairs = set()
 
     def match_pair(i, j, recovery=False):
+        """Match one image pair and merge accepted features into tracks.
+
+        Purpose:
+            Reuse pair caches, apply pose or visual epipolar geometry, reserve
+            held-out matches, and reject duplicate-frame track merges.
+        Inputs:
+            i: First frame index.
+            j: Second frame index.
+            recovery: Whether to require mutual matching and estimate visual geometry.
+        Outputs:
+            Returns ``None``; mutates the disjoint set, held-out set, processed
+            pairs, caches, and match counters captured from ``triangulate``.
+        """
         nonlocal accepted, loop_matches, conflict_rejected, visual_pairs_attempted, visual_pairs_accepted, visual_matches_accepted
         if (i, j) in processed_pairs:
             return
@@ -624,6 +860,23 @@ def triangulate(
 
 
 def save(out, points, tracks, coverage_points, held, stats, min_points=100):
+    """Serialize triangulation products and update metrics.
+
+    Purpose:
+        Export BA landmarks, diagnostic coverage points, observations, held-out
+        matches, a compressed track archive, and triangulation statistics.
+    Inputs:
+        out: Output directory path.
+        points: Accepted ``(XYZ, RGB, error)`` landmark entries.
+        tracks: Observation lists corresponding to ``points``.
+        coverage_points: Diagnostic point entries excluded from BA.
+        held: Held-out pair matches used for validation.
+        stats: Metrics dictionary updated in place with output statistics.
+        min_points: Minimum accepted landmark count for a successful exit.
+    Outputs:
+        Writes PLY, CSV, NPZ, and JSON artifacts and returns ``None``; raises
+        ``SystemExit(2)`` when fewer than ``min_points`` landmarks are available.
+    """
     out.mkdir(parents=True, exist_ok=True)
     with open(out / "sparse_points.ply", "w") as f:
         f.write("ply\nformat ascii 1.0\nelement vertex %d\n" % len(points))
@@ -675,6 +928,18 @@ def save(out, points, tracks, coverage_points, held, stats, min_points=100):
 
 
 def main():
+    """Run sparse multi-view triangulation from initialized camera poses.
+
+    Purpose:
+        Load cameras and intrinsics, configure feature matching and weak-frame
+        recovery, triangulate tracks, and save reconstruction artifacts.
+    Inputs:
+        Command-line dataset/output and optional pose/intrinsics paths plus image,
+        matching, geometry, loop, recovery, coverage, and quality parameters.
+    Outputs:
+        Writes feature caches and sparse reconstruction artifacts through
+        :func:`save`; returns ``None`` unless the minimum-point check exits.
+    """
     p = argparse.ArgumentParser()
     p.add_argument("--data", type=Path, default=Path("data"))
     p.add_argument("--output", type=Path, default=Path("output/lio_camera_pose"))
@@ -743,7 +1008,12 @@ def main():
         intrinsics_file=str(intrinsics),
         three_view_min_parallax_deg=a.three_view_min_parallax_deg,
     )
-    st.update(images=len(frames), time_offset_seconds=-0.4)
+    initialization_metrics = a.output / "metrics.json"
+    time_offset_seconds = 0.0
+    if initialization_metrics.is_file():
+        time_offset_seconds = float(json.loads(initialization_metrics.read_text()).get(
+            "time_offset_seconds", time_offset_seconds))
+    st.update(images=len(frames), time_offset_seconds=time_offset_seconds)
     save(a.output, pts, tr, cpts, held, st, a.min_points)
 
 

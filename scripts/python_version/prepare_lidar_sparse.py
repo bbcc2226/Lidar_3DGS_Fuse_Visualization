@@ -7,6 +7,18 @@ from pathlib import Path
 
 
 def clear_image_point_ids(source: Path, destination: Path) -> None:
+    """Copy COLMAP image records while clearing landmark associations.
+
+    Purpose:
+        Preserve camera poses and 2D observations without references to the
+        source reconstruction's 3D point identifiers.
+    Inputs:
+        source: Path to the source COLMAP ``images.txt`` file.
+        destination: Path where the modified ``images.txt`` is written.
+    Outputs:
+        Writes ``destination`` with every observation point ID set to ``-1``;
+        returns ``None``.
+    """
     lines = source.read_text().splitlines()
     output = []
     expect_header = True
@@ -37,6 +49,16 @@ def clear_image_point_ids(source: Path, destination: Path) -> None:
 
 
 def write_points3d(source: Path, destination: Path) -> int:
+    """Convert an XYZRGB LiDAR text cloud to COLMAP points3D text format.
+
+    Purpose:
+        Assign sequential point IDs and create trackless initialization points.
+    Inputs:
+        source: Path to text rows containing at least ``x y z r g b``.
+        destination: Path where COLMAP ``points3D.txt`` is written.
+    Outputs:
+        Number of LiDAR points written to ``destination``.
+    """
     count = 0
     with source.open() as input_file, destination.open("w") as output_file:
         output_file.write("# 3D point list with one line of data per point:\n")
@@ -57,6 +79,17 @@ def write_points3d(source: Path, destination: Path) -> int:
 
 
 def main() -> None:
+    """Build a COLMAP sparse model initialized from LiDAR points.
+
+    Purpose:
+        Copy camera calibration, retain pose-only image records, and replace
+        visual landmarks with an RGB LiDAR cloud.
+    Inputs:
+        Command-line source sparse-model, LiDAR text-cloud, and output paths.
+    Outputs:
+        Writes ``cameras.txt``, cleared ``images.txt``, and LiDAR
+        ``points3D.txt``; prints the point count and returns ``None``.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--source-sparse", type=Path, required=True)
     parser.add_argument("--lidar-txt", type=Path, required=True)

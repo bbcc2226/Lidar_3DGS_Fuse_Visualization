@@ -11,6 +11,15 @@ import numpy as np
 
 
 def quat_rot(q):
+    """Convert a normalized XYZW quaternion into a rotation matrix.
+
+    Purpose:
+        Build the LiDAR or camera local-to-world rotation used for projection.
+    Inputs:
+        q: Four quaternion components ordered as ``(x, y, z, w)``.
+    Outputs:
+        A 3x3 double-precision NumPy rotation matrix.
+    """
     x, y, z, w = map(float, q)
     n = max(np.linalg.norm([x, y, z, w]), 1e-12)
     x, y, z, w = np.asarray([x, y, z, w]) / n
@@ -25,6 +34,15 @@ def quat_rot(q):
 
 
 def json_objects(path):
+    """Yield JSON objects from a JSONL-like file with multiline support.
+
+    Purpose:
+        Parse records by accumulating text until curly braces are balanced.
+    Inputs:
+        path: Path to the JSON object stream.
+    Outputs:
+        Generator yielding one decoded Python object per complete record.
+    """
     buf = ""
     balance = 0
     for line in open(path):
@@ -36,6 +54,15 @@ def json_objects(path):
 
 
 def load_poses(path):
+    """Load timestamped camera poses from a TUM trajectory.
+
+    Purpose:
+        Parse trajectory rows into camera centers and camera-to-world rotations.
+    Inputs:
+        path: Path to a whitespace-delimited TUM pose file.
+    Outputs:
+        List of ``(timestamp, camera_center, rotation)`` tuples.
+    """
     out = []
     for line in open(path):
         z = line.split()
@@ -45,11 +72,40 @@ def load_poses(path):
 
 
 class CloudCache:
+    """Least-recently-used cache for XYZ vertices loaded from PLY sweeps.
+
+    Purpose:
+        Bound memory while avoiding repeated parsing of nearby LiDAR sweeps.
+    Inputs:
+        Constructed with the maximum number of clouds to retain.
+    Outputs:
+        Instances return Nx3 point arrays through :meth:`get`.
+    """
+
     def __init__(self, limit=256):
+        """Initialize an empty bounded cloud cache.
+
+        Purpose:
+            Configure the cache capacity and insertion/access ordering.
+        Inputs:
+            limit: Maximum number of loaded point clouds to retain.
+        Outputs:
+            Returns ``None`` after initializing the instance in place.
+        """
         self.limit = limit
         self.items = OrderedDict()
 
     def get(self, path):
+        """Load or retrieve XYZ points for one ASCII PLY cloud.
+
+        Purpose:
+            Serve point arrays from the LRU cache and evict the oldest entry
+            when the configured capacity is exceeded.
+        Inputs:
+            path: Path to an ASCII PLY file containing XYZ vertex properties.
+        Outputs:
+            An Nx3 float32 NumPy array of point positions.
+        """
         path = str(path)
         if path in self.items:
             x = self.items.pop(path)
@@ -79,6 +135,17 @@ class CloudCache:
 
 
 def colorize(depth, valid, max_depth):
+    """Render valid depth as a colorized inverse-depth image.
+
+    Purpose:
+        Make nearby surfaces and depth discontinuities visible in QA previews.
+    Inputs:
+        depth: HxW metric depth array.
+        valid: HxW boolean validity mask.
+        max_depth: Farthest visualization depth in meters.
+    Outputs:
+        HxWx3 uint8 BGR image with invalid pixels set to black.
+    """
     inv = np.zeros_like(depth, np.float32)
     inv[valid] = 1 / np.maximum(depth[valid], 1e-3)
     lo = 1 / max_depth
@@ -90,6 +157,16 @@ def colorize(depth, valid, max_depth):
 
 
 def label(im, text):
+    """Add a title strip to a preview image copy.
+
+    Purpose:
+        Identify panels in depth-comparison images.
+    Inputs:
+        im: Source image array.
+        text: Label text to draw at the top left.
+    Outputs:
+        Labeled copy of the input image.
+    """
     x = im.copy()
     cv2.rectangle(x, (0, 0), (320, 38), (0, 0, 0), -1)
     cv2.putText(
@@ -106,6 +183,18 @@ def label(im, text):
 
 
 def main():
+    """Complete local depth maps using nearby global LiDAR sweeps.
+
+    Purpose:
+        Reproject spatially nearby sweeps, require cross-sweep support, preserve
+        local depth, and fill consistent previously empty pixels.
+    Inputs:
+        Command-line data, reconstruction, local-depth, and output paths plus
+        sweep, radius, depth, support, tolerance, splat, and frame controls.
+    Outputs:
+        Writes completed depth arrays, PNGs, masks, confidence maps, previews,
+        and ``global_depth_report.json``; prints summary metrics and returns ``None``.
+    """
     p = argparse.ArgumentParser()
     p.add_argument("--data", type=Path, default=Path("data"))
     p.add_argument("--reconstruction", type=Path, required=True)

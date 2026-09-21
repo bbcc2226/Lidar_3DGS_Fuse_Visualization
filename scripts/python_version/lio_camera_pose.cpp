@@ -93,7 +93,7 @@ std::vector<TimedPose> load_lio(const fs::path& path) {
     return poses;
 }
 std::vector<CameraPose> initialize_cameras(
-    const fs::path& data, double time_offset, int max_images,
+    const fs::path& data, int max_images,
     const fs::path& lidar_timestamps_path) {
     const auto lio = load_lio(data / "key_frames.jsonl");
     const Pose T_lidar_camera =
@@ -117,7 +117,7 @@ std::vector<CameraPose> initialize_cameras(
     while (in >> image >> image_time) {
         if (max_images >= 0 && static_cast<int>(cameras.size()) >= max_images) break;
         if (!fs::exists(data / "undistorted" / image)) continue;
-        double lidar_time = image_time + time_offset;
+        double lidar_time = image_time;
         if (!lidar_timestamps.empty()) {
             const auto mapped = lidar_timestamps.find(image);
             if (mapped == lidar_timestamps.end())
@@ -144,26 +144,24 @@ void save_tum(const fs::path& out, const std::vector<CameraPose>& cameras) {
 int main(int argc, char** argv) {
     try {
         fs::path data = "data", out = "output/lio_camera_pose";
-        double offset = -0.4;
         int max_images = -1;
         fs::path lidar_timestamps_path;
         for (int i = 1; i < argc; ++i) {
             const std::string arg = argv[i];
             if (arg == "--data" && i + 1 < argc) data = argv[++i];
             else if (arg == "--output" && i + 1 < argc) out = argv[++i];
-            else if (arg == "--time-offset" && i + 1 < argc) offset = std::stod(argv[++i]);
             else if (arg == "--max-images" && i + 1 < argc) max_images = std::stoi(argv[++i]);
             else if (arg == "--lidar-timestamps" && i + 1 < argc) lidar_timestamps_path = argv[++i];
+            else throw std::runtime_error("Unknown or incomplete argument: " + arg);
         }
-        auto cameras = initialize_cameras(data, offset, max_images, lidar_timestamps_path);
+        auto cameras = initialize_cameras(data, max_images, lidar_timestamps_path);
         save_tum(out, cameras);
-        const json applied_offset = lidar_timestamps_path.empty() ? json(offset) : json(nullptr);
         json metrics = {
             {"stage", "lio_prior_initialization"},
             {"images", cameras.size()},
-            {"time_offset_seconds", applied_offset},
+            {"time_offset_seconds", lidar_timestamps_path.empty() ? json(0.0) : json(nullptr)},
             {"timestamp_source", lidar_timestamps_path.empty() ?
-                "t_lidar = t_image + time_offset" : lidar_timestamps_path.string()},
+                "t_lidar = t_image" : lidar_timestamps_path.string()},
             {"next_stage", "feature tracks, triangulation, local BA, global BA"}
         };
         std::ofstream(out / "metrics.json") << std::setw(2) << metrics << "\n";

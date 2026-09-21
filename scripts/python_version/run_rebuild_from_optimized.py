@@ -13,6 +13,17 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 
 
 def run(cmd, log, allow_two=False):
+    """Run a subprocess while appending its command and output to a log.
+
+    Purpose:
+        Provide auditable execution and consistent failure handling for rebuild stages.
+    Inputs:
+        cmd: Sequence of executable and argument values.
+        log: Path object for the append-only stage log.
+        allow_two: Whether exit status 2 is accepted as a nonfatal quality result.
+    Outputs:
+        Returns ``None`` on an accepted status; otherwise raises ``RuntimeError``.
+    """
     line = "+ " + " ".join(map(str, cmd))
     print(line, flush=True)
     with log.open("a") as f:
@@ -24,11 +35,32 @@ def run(cmd, log, allow_two=False):
 
 
 def read(path):
+    """Load a JSON document from disk.
+
+    Purpose:
+        Centralize JSON report and history loading for the rebuild pipeline.
+    Inputs:
+        path: Path to a JSON file.
+    Outputs:
+        Decoded Python object from the JSON document.
+    """
     with path.open() as f:
         return json.load(f)
 
 
 def main():
+    """Rebuild, extend, and optimize tracks from staged camera poses.
+
+    Purpose:
+        Re-triangulate growing image batches from an optimized seed, run staged
+        BA, extend tracks once, and compare the final result with the baseline.
+    Inputs:
+        Command-line data, seed, cache, intermediate/final output paths and
+        image-count, batch, BA-period, parallax, and resume controls.
+    Outputs:
+        Writes reconstruction stages, logs, histories, and
+        ``rebuild_final_report.json``; prints the report and returns ``None``.
+    """
     p = argparse.ArgumentParser()
     p.add_argument("--data", type=Path, default=Path("data"))
     p.add_argument(
@@ -231,7 +263,7 @@ def main():
     report = {
         "pass": bool(final.get("pass")),
         "images": total,
-        "timestamp_offset_seconds": -0.4,
+        "timestamp_offset_seconds": 0.0,
         "initialization": "staged optimized poses; landmarks rebuilt from scratch",
         "three_view_policy": {"minimum_parallax_deg": a.three_view_min_parallax_deg},
         "extension": ext,

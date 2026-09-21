@@ -14,6 +14,15 @@ import numpy as np
 
 
 def qrot(q):
+    """Convert a WXYZ quaternion into a rotation matrix.
+
+    Purpose:
+        Construct the camera-to-world rotation used by trajectory diagnostics.
+    Inputs:
+        q: Four quaternion components ordered as ``(w, x, y, z)``.
+    Outputs:
+        A 3x3 NumPy rotation matrix.
+    """
     w, x, y, z = q
     return np.array(
         [
@@ -25,6 +34,15 @@ def qrot(q):
 
 
 def poses(path):
+    """Read camera centers and rotations from a TUM pose file.
+
+    Purpose:
+        Parse valid trajectory rows into the representation used for projection.
+    Inputs:
+        path: Path object for a whitespace-delimited TUM trajectory.
+    Outputs:
+        List of ``(camera_center, camera_to_world_rotation)`` tuples.
+    """
     out = []
     for line in path.open():
         z = line.split()
@@ -36,6 +54,15 @@ def poses(path):
 
 
 def ply(path):
+    """Read XYZ vertices from an ASCII PLY file.
+
+    Purpose:
+        Load optimized landmark positions while ignoring non-position properties.
+    Inputs:
+        path: Path object for an ASCII PLY file with a vertex count in its header.
+    Outputs:
+        An Nx3 floating-point NumPy array of vertex positions.
+    """
     with path.open() as f:
         n = 0
         for line in f:
@@ -49,6 +76,17 @@ def ply(path):
 
 
 def project(X, pose, K):
+    """Project one world-space landmark into a camera.
+
+    Purpose:
+        Compute the landmark's pixel location and reject negative depth.
+    Inputs:
+        X: Three-element world-space landmark position.
+        pose: ``(camera_center, camera_to_world_rotation)`` tuple.
+        K: 3x3 camera intrinsic matrix.
+    Outputs:
+        Two-element pixel coordinate, or ``None`` when the point is behind the camera.
+    """
     t, R = pose
     q = (X - t) @ R
     if q[2] <= 0:
@@ -57,6 +95,18 @@ def project(X, pose, K):
 
 
 def main():
+    """Measure landmark and per-image reconstruction quality.
+
+    Purpose:
+        Classify strong tracks using reprojection, parallax, length, and depth,
+        then summarize their image coverage and spatial distribution.
+    Inputs:
+        Command-line data and reconstruction paths plus track-quality thresholds
+        and image-grid dimensions.
+    Outputs:
+        Writes per-image CSV, JSON summary, and diagnostic plot files to the
+        selected output directory; prints the summary and returns ``None``.
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", type=Path, default=Path("data"))
     ap.add_argument("--input", type=Path, required=True)

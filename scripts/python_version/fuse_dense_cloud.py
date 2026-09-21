@@ -10,6 +10,16 @@ import numpy as np
 
 
 def poses(path):
+    """Load timestamp-indexed camera poses from a TUM trajectory.
+
+    Purpose:
+        Provide camera-to-world transforms for depth back-projection.
+    Inputs:
+        path: Path to a whitespace-delimited TUM pose file.
+    Outputs:
+        Dictionary mapping timestamps rounded to six decimals to
+        ``(camera_to_world_rotation, translation)`` tuples.
+    """
     out = {}
     for line in open(path):
         z = line.split()
@@ -30,6 +40,18 @@ def poses(path):
 
 
 def main():
+    """Back-project and voxel-fuse camera depth maps into a colored cloud.
+
+    Purpose:
+        Transform valid depth samples into world coordinates, combine repeated
+        voxel observations, and retain points supported by multiple frames.
+    Inputs:
+        Command-line data, pose, and output paths plus voxel size, image stride,
+        minimum frame support, maximum depth, and optional text output.
+    Outputs:
+        Writes a PLY cloud, optional text cloud, and JSON metrics; prints metrics
+        and exits with status 0 on sufficient density or status 2 otherwise.
+    """
     p = argparse.ArgumentParser()
     p.add_argument("--data", type=Path, default=Path("data"))
     p.add_argument(

@@ -10,6 +10,17 @@ import numpy as np
 
 
 def colorize(depth, valid, max_vis_depth):
+    """Render valid metric depth as a colorized inverse-depth image.
+
+    Purpose:
+        Produce a QA visualization that emphasizes nearby geometry.
+    Inputs:
+        depth: HxW metric depth array.
+        valid: HxW boolean validity mask.
+        max_vis_depth: Farthest visualization depth in meters.
+    Outputs:
+        HxWx3 uint8 BGR image with invalid pixels set to black.
+    """
     color = np.zeros((*depth.shape, 3), np.uint8)
     if not valid.any():
         return color
@@ -27,6 +38,15 @@ def colorize(depth, valid, max_vis_depth):
 
 
 def confidence_map(valid):
+    """Estimate confidence from local valid-depth density.
+
+    Purpose:
+        Down-weight isolated LiDAR splats without claiming learned uncertainty.
+    Inputs:
+        valid: HxW boolean mask of accepted LiDAR depth pixels.
+    Outputs:
+        HxW float32 confidence array in the range zero to one.
+    """
     # Confidence reflects local LiDAR sampling support and avoids assigning high
     # weight to isolated splats. It is not a learned uncertainty estimate.
     density = cv2.boxFilter(valid.astype(np.float32), -1, (7, 7), normalize=True)
@@ -35,6 +55,16 @@ def confidence_map(valid):
 
 
 def label(im, text):
+    """Add a title strip to a preview image copy.
+
+    Purpose:
+        Identify panels in generated depth-supervision previews.
+    Inputs:
+        im: Source image array.
+        text: Label text to draw at the top left.
+    Outputs:
+        Labeled copy of the input image.
+    """
     out = im.copy()
     cv2.rectangle(out, (0, 0), (270, 38), (0, 0, 0), -1)
     cv2.putText(
@@ -51,6 +81,18 @@ def label(im, text):
 
 
 def main():
+    """Package raw LiDAR depth into 3DGS supervision artifacts.
+
+    Purpose:
+        Validate and clean depth maps, derive masks and confidence, generate QA
+        previews, and summarize per-frame coverage.
+    Inputs:
+        Command-line data, reconstruction, and output paths plus accepted depth
+        range and preview frame indices.
+    Outputs:
+        Writes NPY and PNG depth, mask, confidence, preview, and JSON report
+        files; prints report metadata and returns ``None``.
+    """
     p = argparse.ArgumentParser()
     p.add_argument("--data", type=Path, default=Path("data"))
     p.add_argument("--reconstruction", type=Path, required=True)

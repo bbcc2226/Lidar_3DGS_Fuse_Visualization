@@ -11,6 +11,16 @@ import numpy as np
 
 
 def load_poses(p):
+    """Load camera poses from a TUM trajectory file.
+
+    Purpose:
+        Convert timestamped translations and XYZW quaternions into matrices.
+    Inputs:
+        p: Path to a whitespace-delimited TUM pose file.
+    Outputs:
+        List of ``(timestamp, rotation, translation)`` tuples, where rotation
+        maps camera coordinates to world coordinates.
+    """
     out = []
     for line in open(p):
         z = line.split()
@@ -30,11 +40,33 @@ def load_poses(p):
 
 
 def projection(R, C, K):
+    """Build a world-to-image projection matrix.
+
+    Purpose:
+        Combine a camera-to-world rotation, camera center, and intrinsics.
+    Inputs:
+        R: 3x3 camera-to-world rotation matrix.
+        C: Three-element camera center in world coordinates.
+        K: 3x3 camera intrinsic matrix.
+    Outputs:
+        A 3x4 projection matrix mapping homogeneous world points to pixels.
+    """
     Rc = R.T
     return K @ np.column_stack((Rc, -Rc @ C))
 
 
 def bilinear(im, x, y):
+    """Sample an image or flow channel at floating-point coordinates.
+
+    Purpose:
+        Apply OpenCV bilinear remapping with zero-valued out-of-bounds samples.
+    Inputs:
+        im: Source NumPy image array.
+        x: Array of horizontal sample coordinates.
+        y: Array of vertical sample coordinates with the same shape as ``x``.
+    Outputs:
+        Array of interpolated values with the coordinate arrays' shape.
+    """
     return cv2.remap(
         im,
         x.astype(np.float32),
@@ -45,6 +77,18 @@ def bilinear(im, x, y):
 
 
 def main():
+    """Triangulate and voxel-filter a dense image-derived point cloud.
+
+    Purpose:
+        Track a pixel grid with bidirectional optical flow, enforce photometric
+        and geometric consistency, triangulate matches, and aggregate voxels.
+    Inputs:
+        Command-line paths for data, poses, intrinsics, and output plus optical
+        flow, geometry, support, depth, and voxel filtering parameters.
+    Outputs:
+        Writes an ASCII PLY cloud and a JSON metrics file; prints metrics and
+        exits with status 0 on sufficient density or status 2 otherwise.
+    """
     p = argparse.ArgumentParser()
     p.add_argument("--data", type=Path, default=Path("data"))
     p.add_argument("--intrinsics", type=Path, default=None)

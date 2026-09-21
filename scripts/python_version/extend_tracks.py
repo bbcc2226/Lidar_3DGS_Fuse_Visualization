@@ -13,6 +13,15 @@ import numpy as np
 
 
 def poses(path):
+    """Load camera centers and rotations from a TUM trajectory.
+
+    Purpose:
+        Convert valid pose rows into the representation used by track projection.
+    Inputs:
+        path: Path to a whitespace-delimited TUM pose file.
+    Outputs:
+        List of ``(camera_center, camera_to_world_rotation)`` tuples.
+    """
     result = []
     for line in open(path):
         z = line.split()
@@ -32,6 +41,15 @@ def poses(path):
 
 
 def ply(path):
+    """Load landmark positions and colors from an ASCII PLY file.
+
+    Purpose:
+        Recover the sparse point data that will be retriangulated and exported.
+    Inputs:
+        path: Path to an ASCII PLY containing XYZ and RGB vertex properties.
+    Outputs:
+        Tuple of an Nx3 point array and an Nx3 color array.
+    """
     points = []
     colors = []
     header = True
@@ -48,6 +66,17 @@ def ply(path):
 
 
 def project(X, pose, K):
+    """Project world-space landmarks into one camera.
+
+    Purpose:
+        Predict pixel locations and camera-space depths for track extension.
+    Inputs:
+        X: Nx3 array of world-space landmarks.
+        pose: ``(camera_center, camera_to_world_rotation)`` tuple.
+        K: 3x3 camera intrinsic matrix.
+    Outputs:
+        Tuple ``(pixels, depths)`` containing an Nx2 array and an N-element array.
+    """
     C, R = pose
     q = (X - C) @ R
     uv = np.column_stack(
@@ -57,6 +86,19 @@ def project(X, pose, K):
 
 
 def epipolar(a, b, ua, ub, K):
+    """Measure pose-derived symmetric epipolar error for one correspondence.
+
+    Purpose:
+        Check whether two pixels agree with the known relative camera geometry.
+    Inputs:
+        a: First ``(camera_center, camera_to_world_rotation)`` pose.
+        b: Second pose in the same representation.
+        ua: Two-element pixel coordinate in the first image.
+        ub: Two-element pixel coordinate in the second image.
+        K: Shared 3x3 camera intrinsic matrix.
+    Outputs:
+        Symmetric point-to-epipolar-line distance in pixels.
+    """
     Ca, Ra = a
     Cb, Rb = b
     Rba = Rb.T @ Ra
@@ -75,7 +117,17 @@ def epipolar(a, b, ua, ub, K):
 
 
 def epipolar_f(F, ua, ub):
-    """Symmetric point-to-epipolar-line distance for an estimated F."""
+    """Measure symmetric epipolar error using an estimated fundamental matrix.
+
+    Purpose:
+        Validate a pixel correspondence independently of the pose prior.
+    Inputs:
+        F: 3x3 fundamental matrix mapping the first image to the second.
+        ua: Two-element pixel coordinate in the first image.
+        ub: Two-element pixel coordinate in the second image.
+    Outputs:
+        Symmetric point-to-epipolar-line distance in pixels.
+    """
     x = np.r_[ua, 1.0]
     y = np.r_[ub, 1.0]
     l = F @ x
@@ -89,7 +141,24 @@ def epipolar_f(F, ua, ub):
 def visual_fundamental(
     xya, desa, xyb, desb, threshold, min_inliers, min_inlier_ratio, grid_shape=(4, 3)
 ):
-    """Estimate pair geometry without a pose prior, with degeneracy guards."""
+    """Estimate image-pair geometry without using pose priors.
+
+    Purpose:
+        Match descriptors, robustly estimate a fundamental matrix, and reject
+        weak or spatially degenerate consensus sets.
+    Inputs:
+        xya: Nx2 keypoint coordinates from the first image.
+        desa: NxD descriptors corresponding to ``xya``.
+        xyb: Mx2 keypoint coordinates from the second image.
+        desb: MxD descriptors corresponding to ``xyb``.
+        threshold: Fundamental-matrix inlier threshold in pixels.
+        min_inliers: Minimum accepted inlier count.
+        min_inlier_ratio: Minimum accepted fraction of mutual matches.
+        grid_shape: Spatial grid dimensions used for degeneracy checking.
+    Outputs:
+        Tuple ``(F, inlier_count)``; ``F`` is ``None`` when estimation or the
+        quality guards fail.
+    """
     if len(desa) < 8 or len(desb) < 8:
         return None, 0
     matcher = cv2.BFMatcher(cv2.NORM_L2)
@@ -117,6 +186,15 @@ def visual_fundamental(
 
     # A line/patch-sized consensus is not enough to constrain general geometry.
     def occupied(points):
+        """Count occupied normalized grid cells for a point set.
+
+        Purpose:
+            Detect fundamental-matrix consensus concentrated in a small region.
+        Inputs:
+            points: Nx2 array of inlier pixel coordinates.
+        Outputs:
+            Number of distinct cells occupied in the enclosing ``grid_shape``.
+        """
         span = np.ptp(points, axis=0)
         norm = (points - points.min(axis=0)) / np.maximum(span, 1.0)
         cells = np.floor(norm * np.asarray(grid_shape)).astype(int)
@@ -129,6 +207,16 @@ def visual_fundamental(
 
 
 def pixel_grid(xy, cell):
+    """Index keypoints by fixed-size pixel cells.
+
+    Purpose:
+        Limit descriptor searches to spatially nearby image features.
+    Inputs:
+        xy: Nx2 array of pixel coordinates.
+        cell: Cell width and height in pixels.
+    Outputs:
+        Mapping from integer ``(cell_x, cell_y)`` keys to keypoint indices.
+    """
     grid = defaultdict(list)
     for i, (u, v) in enumerate(xy):
         grid[(int(u // cell), int(v // cell))].append(i)
@@ -136,6 +224,17 @@ def pixel_grid(xy, cell):
 
 
 def nearby(grid, uv, cell):
+    """Find feature indices in the 3x3 cell neighborhood around a pixel.
+
+    Purpose:
+        Retrieve coarse spatial candidates before exact radius filtering.
+    Inputs:
+        grid: Cell-to-feature mapping produced by :func:`pixel_grid`.
+        uv: Two-element query pixel coordinate.
+        cell: Cell width and height in pixels.
+    Outputs:
+        List of candidate feature indices from adjacent cells.
+    """
     x, y = int(uv[0] // cell), int(uv[1] // cell)
     out = []
     for dx in (-1, 0, 1):
@@ -145,6 +244,17 @@ def nearby(grid, uv, cell):
 
 
 def triangulate_all(observations, ps, K):
+    """Triangulate a landmark from all of its track observations.
+
+    Purpose:
+        Solve the homogeneous multi-view DLT system with fixed camera poses.
+    Inputs:
+        observations: Iterable of ``(frame, u, v, is_new)`` observations.
+        ps: Sequence of camera-center and rotation tuples indexed by frame.
+        K: 3x3 camera intrinsic matrix.
+    Outputs:
+        Three-element world-space landmark position.
+    """
     A = []
     for f, u, v, _ in observations:
         C, R = ps[f]
@@ -157,6 +267,18 @@ def triangulate_all(observations, ps, K):
 
 
 def main():
+    """Extend existing landmark tracks into additional camera frames.
+
+    Purpose:
+        Use pose projection, descriptors, epipolar checks, and visual fallback
+        geometry to add observations before fixed-pose retriangulation.
+    Inputs:
+        Command-line data, input/output, intrinsics, cache, target-frame paths,
+        and descriptor, geometry, search, depth, and support thresholds.
+    Outputs:
+        Writes extended tracks, sparse points, copied pose metadata, and track
+        extension metrics; prints metrics and returns ``None``.
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", type=Path, default=Path("data"))
     ap.add_argument("--input", type=Path, required=True)
@@ -249,6 +371,15 @@ def main():
     feature_data = {}
 
     def features(f):
+        """Load and memoize core cached features for one frame.
+
+        Purpose:
+            Avoid repeatedly reading a frame's keypoints and descriptors.
+        Inputs:
+            f: Integer frame index into ``names``.
+        Outputs:
+            Tuple ``(xy, descriptors)`` containing core cached SIFT features.
+        """
         if f not in feature_data:
             z = np.load(cache / (Path(names[f]).stem + ".npz"))
             n = int(z["core_count"])
@@ -262,6 +393,16 @@ def main():
     prior_accepted = 0
 
     def visual_model(anchor, f):
+        """Get or estimate pose-independent geometry for an image pair.
+
+        Purpose:
+            Cache fundamental matrices used when the pose prior rejects a match.
+        Inputs:
+            anchor: Integer index of the established observation frame.
+            f: Integer index of the target frame.
+        Outputs:
+            A 3x3 fundamental matrix, or ``None`` when estimation fails.
+    """
         nonlocal visual_attempts, visual_successes
         key = (anchor, f)
         if key not in visual_models:
@@ -414,7 +555,7 @@ def main():
         )
         for x, c in zip(X, COL):
             f.write("%g %g %g %d %d %d\n" % (*x, *c))
-    for name in ["poses_lio_prior_tum.txt", "heldout.csv"]:
+    for name in ["poses_lio_prior_tum.txt", "heldout.csv", "metrics.json"]:
         (a.output / name).write_bytes((a.input / name).read_bytes())
     (a.output / "poses_initial_tum.txt").write_bytes(
         (a.input / "poses_optimized_tum.txt").read_bytes()

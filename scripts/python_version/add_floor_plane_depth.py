@@ -19,6 +19,21 @@ from generate_global_lidar_depth import (
 
 
 def fit_floor(points, C, rng, iterations=500, threshold=0.035, min_camera_height=0.7):
+    """Fit a plausible near-horizontal floor plane with RANSAC.
+
+    Purpose:
+        Find and refine the dominant floor below a known camera center.
+    Inputs:
+        points: Nx3 array of world-space candidate points.
+        C: Three-element world-space camera center.
+        rng: NumPy random generator used to sample plane hypotheses.
+        iterations: Maximum number of RANSAC hypotheses to test.
+        threshold: Maximum point-to-plane distance for an inlier, in meters.
+        min_camera_height: Minimum accepted camera height above the plane, in meters.
+    Outputs:
+        A tuple ``(normal, d, inlier_count, rms, camera_height)`` for the plane
+        ``normal @ point + d = 0``, or ``None`` when no reliable floor is found.
+    """
     # Gravity is world +Z. Restrict hypotheses to plausible planes below camera.
     if len(points) > 120000:
         points = points[rng.choice(len(points), 120000, replace=False)]
@@ -61,6 +76,18 @@ def fit_floor(points, C, rng, iterations=500, threshold=0.035, min_camera_height
 
 
 def main():
+    """Generate floor-completed depth maps from sparse LiDAR depth.
+
+    Purpose:
+        Fit a local floor for each selected camera and fill only supported,
+        unoccluded depth pixels with low-confidence plane intersections.
+    Inputs:
+        Command-line arguments identifying the data, reconstruction, input-depth,
+        and output directories plus floor fitting and frame-selection thresholds.
+    Outputs:
+        Writes depth arrays, depth PNGs, masks, confidence maps, floor masks,
+        previews, and ``floor_depth_report.json``; returns ``None``.
+    """
     p = argparse.ArgumentParser()
     p.add_argument("--data", type=Path, default=Path("data"))
     p.add_argument("--reconstruction", type=Path, required=True)

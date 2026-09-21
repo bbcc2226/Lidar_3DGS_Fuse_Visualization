@@ -10,6 +10,17 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 
 
 def run(cmd, allow_two=False):
+    """Run one pipeline subprocess and enforce its exit status.
+
+    Purpose:
+        Echo commands and stop incremental processing when a stage fails.
+    Inputs:
+        cmd: Sequence of executable and argument values.
+        allow_two: Whether exit status 2 is accepted as a nonfatal quality result.
+    Outputs:
+        Returns ``None`` on an accepted status; otherwise raises ``SystemExit``
+        with the subprocess status.
+    """
     print("+", " ".join(map(str, cmd)), flush=True)
     r = subprocess.run([str(x) for x in cmd])
     if r.returncode and not (allow_two and r.returncode == 2):
@@ -17,6 +28,18 @@ def run(cmd, allow_two=False):
 
 
 def main():
+    """Run triangulation and bundle adjustment over growing image batches.
+
+    Purpose:
+        Bootstrap camera initialization, periodically perform global BA, and
+        record reconstruction quality as the active image set grows.
+    Inputs:
+        Command-line data/output paths and image-count, batch, local-window,
+        global-BA, loop-closure, and resume controls.
+    Outputs:
+        Runs pipeline subprocesses, writes ``incremental_history.json``, prints
+        the final history entry, and returns ``None``.
+    """
     p = argparse.ArgumentParser()
     p.add_argument("--data", type=Path, default=Path("data"))
     p.add_argument(
@@ -65,8 +88,6 @@ def main():
                 a.output,
                 "--max-images",
                 total,
-                "--time-offset",
-                "-0.4",
             ]
         )
         history = []

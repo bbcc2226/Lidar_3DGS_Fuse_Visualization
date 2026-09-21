@@ -1,7 +1,79 @@
-# LIO-prior visual camera poses for 3DGS
+# LIO-prior visual camera poses for 3DGS Python version
 
-This pipeline uses no COLMAP command or library. It uses OpenCV SIFT and Ceres
-local/global bundle adjustment. Synchronization is t_lidar = t_image - 0.4 s.
+This directory contains the hybrid Python/C++ reconstruction workflow used to
+turn a calibrated image sequence and a LiDAR-inertial odometry (LIO) trajectory
+into camera poses and sparse geometry suitable for 3D Gaussian Splatting
+(3DGS). Python handles feature extraction, image matching, track construction,
+triangulation, diagnostics, and orchestration. The two small C++ programs use
+Eigen and Ceres to initialize camera poses and run bundle adjustment (BA).
+The workflow does not invoke or link against COLMAP, but it exports a
+COLMAP-text-compatible model for tools that consume `cameras.txt`, `images.txt`,
+and `points3D.txt`.
+
+## What the pipeline does
+
+The reconstruction starts from LIO poses rather than estimating camera motion
+from images alone. `lio_camera_pose` interpolates the LIO trajectory directly at
+each image timestamp and applies the calibrated camera/LiDAR transform. There is
+no implicit camera/LiDAR time offset. `triangulate_sparse.py` then extracts SIFT
+features, matches temporal and non-local image pairs, builds conflict-free
+multi-view tracks, and triangulates landmarks. `lio_bundle_adjust` jointly
+refines camera poses, landmarks, and optionally intrinsics while robust pose
+priors keep the solution close to the metric LIO trajectory.
+
+For long or weakly textured sequences, the recommended multiround workflow runs
+triangulation and BA once, projects the established landmarks into additional
+frames with `extend_tracks.py`, and runs BA again. This improves landmark support
+without discarding the metric scale or using image-only pose initialization.
+
+```text
+images + timestamps + intrinsics + LIO poses + camera/LiDAR calibration
+                              |
+                              v
+                  interpolated camera pose priors
+                              |
+                              v
+             SIFT matching and multi-view triangulation
+                              |
+                              v
+                 first-round Ceres bundle adjustment
+                              |
+                              v
+                  pose-guided track extension
+                              |
+                              v
+            second-round BA, validation, and COLMAP export
+```
+
+## Required inputs
+
+The input directory uses the repository's legacy `data/` layout:
+
+- `timestamps.txt`: one image filename and timestamp per row;
+- `undistorted/`: calibrated, undistorted or already-rectified images;
+- `intrinsics.txt`: the $3 \times 3$ camera intrinsic matrix;
+- `key_frames.jsonl`: timestamped LIO poses and LiDAR sweep references; and
+- `tuned_camera_lidar_extrinsic.json`: the rigid camera/LiDAR calibration.
+
+The camera and LIO timestamps must share the same clock. Camera initialization
+uses direct interpolation, $t_{\text{lidar}} = t_{\text{image}}$, and the pose
+stored in the prepared `lio_pose` field. KITTI preparation can promote
+`optimized_pose` into that field before this workflow runs.
+
+## Main outputs
+
+Each reconstruction output directory contains the initialized LIO pose prior,
+optimized TUM camera trajectory, refined intrinsics, sparse landmarks and tracks,
+evaluation metrics, and a COLMAP-compatible model under `sparse/0/`. Feature and
+pair caches are retained under `cache/` so repeated triangulation or track
+extension does not have to recompute every descriptor match. Optional utilities
+can additionally create landmark diagnostics, filtered 3DGS packages, LiDAR
+depth supervision, or fused dense point clouds.
+
+This implementation remains useful for reproducing the Python/Ceres experiments
+and for the multiround KITTI workflow. The repository-root C++ pipeline is the
+maintained production implementation; see [ARCHITECTURE.md](../../ARCHITECTURE.md)
+for its component design and migration status.
 
 ## Running the pipeline
 
@@ -29,7 +101,7 @@ The equivalent commands, useful when debugging one stage, are:
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --target lio_camera_pose lio_bundle_adjust -j2
 ./build/lio_camera_pose --data data --output output/lio_camera_pose \
-  --max-images -1 --time-offset -0.4
+  --max-images -1
 python3 scripts/python_version/triangulate_sparse.py \
   --data data --output output/lio_camera_pose --max-images -1
 ./build/lio_bundle_adjust --data data --output output/lio_camera_pose
@@ -135,6 +207,67 @@ python3 scripts/python_version/dense_mvs_triangulate.py \
 Every Python command supports `--help`. Output directories should be distinct
 between experiments because several stages intentionally overwrite their own
 metrics and intermediate files.
+
+### Running on KITTI via `scripts/kitti/prepare_kitti_pipeline.py`
+
+`scripts/kitti/prepare_kitti_pipeline.py` reads `kitti_prepare.json` (KITTI sequence
+directory, LiDAR SLAM directory, camera, inclusive image ID range) and writes
+`output/kitti_prepared/<camera>_<start>_<end>/` for the root C++ pipeline. The
+Python-version stages read the same information but expect the `data/` layout,
+so four things must be adapted:
+
+| Python-version expects | `scripts/kitti/prepare_kitti_pipeline.py` writes |
+|---|---|
+| `timestamps.txt` with `name ts` rows and no header | a `# image_filename ...` header line |
+| `tuned_camera_lidar_extrinsic.json` | `camera_lidar_extrinsic.json` (same `T_camera_lidar` key) |
+| `undistorted/<name>.png` | images stay in the KITTI `image_03/data` folder (already rectified) |
+| Camera/LiDAR timestamps | Direct timestamp alignment; no time offset is applied |
+
+The root `CMakeLists.txt` no longer defines the `lio_camera_pose` and
+`lio_bundle_adjust` targets, so `run_pipeline.sh` cannot be used directly;
+compile the two helpers with g++ and run the stages by hand.
+
+```bash
+# 1) Prepare KITTI inputs only (no root C++ run)
+python3 scripts/kitti/prepare_kitti_pipeline.py --prepare-only
+P=output/kitti_prepared/image_03_0000000070_0000000500
+SEQ=$(python3 -c "import json;print(json.load(open('kitti_prepare.json'))['sequence_directory'])")
+
+# 2) Convert to the python_version data layout
+D=data_kitti_70_500 && mkdir -p "$D"
+grep -v '^#' "$P/timestamps.txt" > "$D/timestamps.txt"
+cp "$P/key_frames.jsonl" "$P/intrinsics.txt" "$D/"
+cp "$P/camera_lidar_extrinsic.json" "$D/tuned_camera_lidar_extrinsic.json"
+ln -sfn "$SEQ/image_03/data" "$D/undistorted"
+
+# 3) Build the two helper binaries (Eigen, nlohmann-json, Ceres, glog, gflags)
+mkdir -p build
+g++ -O2 -std=c++17 scripts/python_version/lio_camera_pose.cpp \
+  -o build/lio_camera_pose -I/usr/include/eigen3
+g++ -O2 -std=c++17 scripts/python_version/bundle_adjust.cpp \
+  -o build/lio_bundle_adjust -I/usr/include/eigen3 -lceres -lglog -lgflags -pthread
+
+# 4) Run the four stages (timestamps are aligned directly)
+O=output/kitti_python_version_70_500
+./build/lio_camera_pose --data "$D" --output "$O" --max-images -1
+python3 scripts/python_version/triangulate_sparse.py --data "$D" --output "$O" --max-images -1
+./build/lio_bundle_adjust --data "$D" --output "$O"
+python3 scripts/python_version/test_outputs.py --data "$D" --output "$O"
+
+# 5) Optional: filtered 3DGS export
+python3 scripts/python_version/diagnose_landmarks.py \
+  --data "$D" --input "$O" --output "$O/landmark_diagnostics"
+python3 scripts/python_version/export_filtered_3dgs.py \
+  --input "$O" --images "$D/undistorted" \
+  --diagnostics "$O/landmark_diagnostics" --output "${O}_3dgs" --exclude-zero
+```
+
+Use `--start-image-id` / `--end-image-id` on `scripts/kitti/prepare_kitti_pipeline.py` to
+override the configured range; the prepared directory name follows the
+effective range (`image_03_<first>_<last>`, zero-padded to 10 digits). The
+3DGS training input is `$O/sparse/0` plus the images in `$D/undistorted`.
+Triangulation over several hundred images is the slow stage; redirect it to a
+log (`> "$O/triangulate.log" 2>&1`) when running in the background.
 
 Run every image:
 
