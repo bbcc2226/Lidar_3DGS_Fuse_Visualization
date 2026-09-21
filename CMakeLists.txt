@@ -200,6 +200,10 @@ if(BUILD_TESTING)
             NAME compare_sparse_outputs_test
             COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_compare_sparse_outputs.py
         )
+        add_test(
+            NAME prepare_kitti_pipeline_test
+            COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_prepare_kitti.py
+        )
         set_tests_properties(
             compare_sparse_outputs_test
             PROPERTIES ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/tools"
