@@ -5,6 +5,7 @@ data/
 *.png
 *.pyc
 /output/*
-
+data_kitti_*/
+kitti_*
 
 
