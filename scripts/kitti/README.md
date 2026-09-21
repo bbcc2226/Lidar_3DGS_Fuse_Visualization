@@ -41,6 +41,35 @@ It contains `timestamps.txt`, `key_frames.jsonl`, `intrinsics.txt`,
 `camera_lidar_extrinsic.json`, `image_lidar_association.csv`,
 `preparation_summary.json`, and `pipeline.yaml`.
 
+## Test the preparer
+
+`tests/test_prepare_kitti.py` is the unit test for
+`prepare_kitti_pipeline.py`. It verifies rectified camera/LiDAR calibration,
+inclusive image-range selection, promotion of `optimized_pose` to `lio_pose`,
+duplicate pose revision handling, pose timestamp coverage policies, image
+dimensions, associations, and generated YAML metadata.
+
+The tests create synthetic KITTI images, calibration files, and LIO records in
+temporary directories. They do not read, modify, or delete the real KITTI data
+or generated reconstruction outputs.
+
+Run all preparation tests from the repository root:
+
+```bash
+python3 -m unittest -v tests.test_prepare_kitti
+```
+
+Run one test by its full name when debugging a specific behavior:
+
+```bash
+python3 -m unittest \
+  tests.test_prepare_kitti.KittiPrepareTest.test_pose_range_clips_or_errors_explicitly
+```
+
+A successful run reports four passing tests followed by `OK`. These tests only
+validate input preparation; they do not run feature matching, bundle adjustment,
+OXTS evaluation, or 3DGS training.
+
 ## Run the two-round Python workflow
 
 Adapt the prepared directory to the legacy Python input layout:
