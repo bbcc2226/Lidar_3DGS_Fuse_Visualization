@@ -749,6 +749,48 @@ Every component consumes these contracts. Keep algorithm settings and methods in
 their feature component; Core must not depend on Pipeline or another high-level
 stage. Shared data structs remain separate from the stateless component classes.
 
+## Prepare and run KITTI with LiDAR SLAM poses
+
+Edit kitti_prepare.json to select the sequence, camera, inclusive image-ID range,
+LiDAR SLAM folder, timestamp policy, and output directories. The example points at
+the supplied drive_0027_sync image_03 sequence and kitti_point_cloud folder.
+
+Run preparation and C++ reconstruction from the repository root:
+
+```bash
+python3 scripts/kitti/prepare_kitti_pipeline.py --config kitti_prepare.json
+```
+
+Image IDs are numeric PNG filenames and both configured range endpoints
+are included. For a one-off range, pass --start-image-id and --end-image-id.
+Use --prepare-only to generate inputs and inspect them before running C++.
+
+The script matches the image timestamp file to numeric PNG names, parses
+key_frames.jsonl, and uses each optimized_pose as the C++ trajectory's lio_pose.
+It preserves and validates each saved LiDAR cloud path. For image_03, it converts
+KITTI's P_rect_03, R_rect_00, and Velodyne-to-camera calibration into a pinhole
+intrinsics file and the T_camera_lidar JSON expected by the C++ loader. It writes
+image_lidar_association.csv with the nearest SLAM frame/cloud and signed time
+difference. The C++ pipeline itself interpolates the selected trajectory at each
+camera timestamp plus camera_time_offset_seconds.
+
+By default, image IDs whose query times are outside SLAM pose coverage are clipped
+and counted in preparation_summary.json. Set outside_pose_range to error to reject
+a partially covered range. The LiDAR log has nine duplicate-time records in this drive. They are repeated
+revisions of the same key frame and cloud; the default duplicate_pose_policy,
+last_revision, keeps the last optimized pose for those duplicates and reports
+the count. Duplicate timestamps referring to different key frames are rejected.
+Change the policy to error to reject any duplicates.
+
+The script also writes a generated pipeline.yaml, then
+runs the root build/lio_visual_ba_pipeline unless --prepare-only was supplied.
+Prepared files are stored under output/kitti_prepared; reconstruction products
+are written to pipeline_output_directory.
+
+This adapter validates and retains LiDAR point-cloud references, but the current
+C++ visual reconstruction does not consume or fuse point-cloud geometry; it uses
+the optimized LiDAR SLAM poses and camera images.
+
 ## Compare with the preserved Python pipeline
 
 Use preserved Python reference outputs in `output/lio_visual_ba_python` (or adjust
