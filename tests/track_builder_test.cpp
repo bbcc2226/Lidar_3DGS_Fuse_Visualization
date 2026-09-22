@@ -1,11 +1,15 @@
 #include "feature_processor.hpp"
+
 #include <algorithm>
-#include <gtest/gtest.h>
 #include <set>
+
+#include <gtest/gtest.h>
+
 namespace lio_visual_ba
 {
 namespace
 {
+
 FeatureSet Features(int camera, int count, std::size_t core)
 {
     FeatureSet set;
