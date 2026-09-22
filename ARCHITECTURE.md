@@ -28,7 +28,7 @@ The temporary `standalone_cpp/` project has been integrated into the repository
 root. Its source, headers, tests, tools, YAML configurations, README, and this
 architecture document now live at the root. The CMake project is named
 `lio_visual_ba`, and builds use `cmake -S . -B build`. The CLI entry point is
-`src/main.cpp`. The root build contains only the maintained pipeline and its tests.
+`src/Main.cpp`. The root build contains only the maintained pipeline and its tests.
 
 The legacy `standalone/` directory remains a behavioral reference until final
 acceptance. Its executables are no longer targets in the maintained CMake build.
@@ -88,7 +88,7 @@ The repository currently has two overlapping implementations.
 ### Maintained C++ pipeline
 
 - `include/` and `src/` contain the flat component APIs and implementations.
-- `src/main.cpp` loads a YAML configuration and runs `Pipeline::RunPipeline`.
+- `src/Main.cpp` loads a YAML configuration and runs `Pipeline::RunPipeline`.
 - `tests/*_test.cpp` contains the maintained regression tests, explicitly listed
   in CMake. Older CamelCase test files are retained as historical source and are
   not part of the current target.
@@ -127,14 +127,14 @@ each feature's API, implementation, invariants, and tests in the overall README.
 
 ```text
 include/
-  status.hpp, types.hpp
-  dataset_io.hpp, geometry.hpp, feature_processor.hpp
-  mapper.hpp, optimizer.hpp, reconstruction_exporter.hpp, pipeline.hpp
+  Status.hpp, Types.hpp
+  DatasetIo.hpp, Geometry.hpp, FeatureProcessor.hpp
+  Mapper.hpp, Optimizer.hpp, ReconstructionExporter.hpp, Pipeline.hpp
 src/
-  main.cpp
-  dataset_io.cpp, geometry.cpp, feature_processor.cpp
-  mapper.cpp, optimizer.cpp, reconstruction_exporter.cpp
-  pipeline.cpp, pipeline_frontend.cpp, pipeline_backend.cpp, pipeline_rematcher.cpp
+  Main.cpp
+  DatasetIo.cpp, Geometry.cpp, FeatureProcessor.cpp
+  Mapper.cpp, Optimizer.cpp, ReconstructionExporter.cpp
+  Pipeline.cpp, PipelineFrontend.cpp, PipelineBackend.cpp, PipelineRematcher.cpp
 ```
 
 Both directories are flat. Headers are included by filename; the C++ namespace
@@ -209,8 +209,8 @@ must state their direction, such as `world_from_camera` or
 
 `DatasetIO` owns YAML configuration, input paths, camera records, calibration,
 and the LIO trajectory. Its public API is declared in
-[`include/dataset_io.hpp`](include/dataset_io.hpp) and implemented in
-[`src/dataset_io.cpp`](src/dataset_io.cpp).
+[`include/DatasetIo.hpp`](include/DatasetIo.hpp) and implemented in
+[`src/DatasetIo.cpp`](src/DatasetIo.cpp).
 
 ### Required inputs
 
@@ -376,8 +376,8 @@ Future feature changes should update the relevant component guide and tests.
 
 1. `CMakeLists.txt`: define the library, focused applications, dependencies,
    warnings, sanitizable test targets, and install layout.
-2. `include/status.hpp`: define the project-wide error/result model.
-3. `include/types.hpp`: define IDs and the canonical data model.
+2. `include/Status.hpp`: define the project-wide error/result model.
+3. `include/Types.hpp`: define IDs and the canonical data model.
 4. `include/lio_visual_ba/geometry/pose.hpp` plus implementation/test: establish and
    verify transform composition, inversion, and interpolation conventions.
 5. Core input readers and tests: timestamps, intrinsics, extrinsics, JSONL LIO

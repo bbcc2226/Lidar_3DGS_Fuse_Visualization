@@ -24,7 +24,7 @@
       <change beforePath="$PROJECT_DIR$/src/app/RobotPathPlayer.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/RobotPathPlayer.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/app/ViewerController.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/ViewerController.cpp" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/app/ViewerController.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/ViewerController.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/main.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/main.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/Main.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/Main.cpp" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/processing/3dgsProcessing.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/processing/3dgsProcessing.cpp" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/processing/3dgsProcessing.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/processing/3dgsProcessing.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/processing/TrajectoryProcessing.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/processing/TrajectoryProcessing.cpp" afterDir="false" />
@@ -63,7 +63,7 @@
     <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/app/MainWindow.h" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/app/ViewerController.h" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/app/ViewerController.h" root0="SKIP_HIGHLIGHTING" />
-    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/app/main.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/app/Main.cpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/processing/TrajectoryProcessing.cpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/renderer/OpenGLWidget.h" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/renderer/OpenGLWidget.h" root0="SKIP_HIGHLIGHTING" />

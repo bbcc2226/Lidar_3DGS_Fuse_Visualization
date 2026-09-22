@@ -159,7 +159,7 @@ pipeline stage interactions are documented in
 - [Repository architecture](ARCHITECTURE.md#2-current-repository-architecture)
 - [Core data contracts](ARCHITECTURE.md#5-core-data-contracts)
 - [Component responsibilities](ARCHITECTURE.md#6-component-responsibilities)
-- [`DatasetIO` API](include/dataset_io.hpp)
+- [`DatasetIO` API](include/DatasetIo.hpp)
 
 ## Prepare and run KITTI with LiDAR SLAM poses
 

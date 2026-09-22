@@ -3,6 +3,7 @@
 #include "RobotPathPlayer.h"
 #include "SemanticQuery.h"
 
+#include <QPainterPath>
 #include <QVector2D>
 #include <QtMath>
 

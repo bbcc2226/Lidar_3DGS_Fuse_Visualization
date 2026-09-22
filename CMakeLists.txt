@@ -97,7 +97,13 @@ endif()
 # link lio_visual_ba::dependencies instead of repeating package-specific target names.
 add_library(lio_visual_ba_dependencies INTERFACE)
 add_library(lio_visual_ba::dependencies ALIAS lio_visual_ba_dependencies)
-target_include_directories(lio_visual_ba_dependencies SYSTEM INTERFACE ${OpenCV_INCLUDE_DIRS})
+target_include_directories(
+    lio_visual_ba_dependencies
+    SYSTEM
+    INTERFACE
+        ${OpenCV_INCLUDE_DIRS}
+        ${CMAKE_CURRENT_SOURCE_DIR}/3rd_party/sophus
+)
 target_link_libraries(
     lio_visual_ba_dependencies
     INTERFACE
@@ -129,16 +135,16 @@ endif()
 add_library(
     lio_visual_ba_core
     STATIC
-        src/reconstruction_exporter.cpp
-        src/feature_processor.cpp
-        src/geometry.cpp
-        src/dataset_io.cpp
-        src/mapper.cpp
-        src/optimizer.cpp
-        src/pipeline.cpp
-        src/pipeline_backend.cpp
-        src/pipeline_frontend.cpp
-        src/pipeline_rematcher.cpp
+        src/ReconstructionExporter.cpp
+        src/FeatureProcessor.cpp
+        src/Geometry.cpp
+        src/DatasetIo.cpp
+        src/Mapper.cpp
+        src/Optimizer.cpp
+        src/Pipeline.cpp
+        src/PipelineBackend.cpp
+        src/PipelineFrontend.cpp
+        src/PipelineRematcher.cpp
 )
 add_library(lio_visual_ba::core ALIAS lio_visual_ba_core)
 target_include_directories(
@@ -155,7 +161,7 @@ target_link_libraries(
         lio_visual_ba::project_warnings
 )
 
-add_executable(lio_visual_ba_pipeline src/main.cpp)
+add_executable(lio_visual_ba_pipeline src/Main.cpp)
 target_link_libraries(
     lio_visual_ba_pipeline
     PRIVATE
@@ -169,8 +175,8 @@ if(LIO_VISUAL_BA_ENABLE_QT_VIEWER)
     set(CMAKE_AUTORCC ON)
 
     add_executable(
-        lio_visual_ba_qt_viewer
-        src/app/main.cpp
+        3dgs_qt_viewer
+        src/app/Main.cpp
         src/app/MainWindow.cpp
         src/app/MainWindow.h
         src/app/ViewerController.cpp
@@ -196,7 +202,7 @@ if(LIO_VISUAL_BA_ENABLE_QT_VIEWER)
         include/NavigationIntentParser.h
     )
     target_include_directories(
-        lio_visual_ba_qt_viewer
+        3dgs_qt_viewer
         PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/src/app
             ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer
@@ -204,7 +210,7 @@ if(LIO_VISUAL_BA_ENABLE_QT_VIEWER)
             ${CMAKE_CURRENT_SOURCE_DIR}/include
     )
     target_link_libraries(
-        lio_visual_ba_qt_viewer
+        3dgs_qt_viewer
         PRIVATE
             lio_visual_ba::core
             lio_visual_ba::project_warnings
@@ -217,7 +223,7 @@ if(LIO_VISUAL_BA_ENABLE_QT_VIEWER)
             Qt5::Concurrent
     )
     target_compile_definitions(
-        lio_visual_ba_qt_viewer
+        3dgs_qt_viewer
         PRIVATE PROJECT_ROOT_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
     )
 endif()
@@ -225,32 +231,32 @@ endif()
 if(BUILD_TESTING)
     add_executable(
         lio_visual_ba_unit_tests
-        tests/pose_test.cpp
-        tests/camera_model_test.cpp
-        tests/colmap_text_writer_test.cpp
-        tests/reconstruction_validator_test.cpp
-        tests/epipolar_test.cpp
-        tests/triangulation_test.cpp
-        tests/feature_extractor_test.cpp
-        tests/feature_cache_test.cpp
-        tests/feature_matcher_test.cpp
-        tests/pair_cache_test.cpp
-        tests/track_builder_test.cpp
-        tests/calibration_io_test.cpp
-        tests/image_list_io_test.cpp
-        tests/reconstruction_io_test.cpp
-        tests/trajectory_io_test.cpp
-        tests/pose_initializer_test.cpp
-        tests/bundle_adjuster_test.cpp
-        tests/incremental_optimizer_test.cpp
-        tests/local_bundle_adjuster_test.cpp
-        tests/local_window_selector_test.cpp
-        tests/pipeline_config_test.cpp
-        tests/pipeline_backend_test.cpp
-        tests/pipeline_frontend_test.cpp
-        tests/pipeline_test.cpp
-        tests/landmark_builder_test.cpp
-        tests/pair_selector_test.cpp
+        tests/PoseTest.cpp
+        tests/CameraModelTest.cpp
+        tests/ColmapTextWriterTest.cpp
+        tests/ReconstructionValidatorTest.cpp
+        tests/EpipolarTest.cpp
+        tests/TriangulationTest.cpp
+        tests/FeatureExtractorTest.cpp
+        tests/FeatureCacheTest.cpp
+        tests/FeatureMatcherTest.cpp
+        tests/PairCacheTest.cpp
+        tests/TrackBuilderTest.cpp
+        tests/CalibrationIoTest.cpp
+        tests/ImageListIoTest.cpp
+        tests/ReconstructionIoTest.cpp
+        tests/TrajectoryIoTest.cpp
+        tests/PoseInitializerTest.cpp
+        tests/BundleAdjusterTest.cpp
+        tests/IncrementalOptimizerTest.cpp
+        tests/local_BundleAdjusterTest.cpp
+        tests/LocalWindowSelectorTest.cpp
+        tests/PipelineConfigTest.cpp
+        tests/PipelineBackendTest.cpp
+        tests/PipelineFrontendTest.cpp
+        tests/PipelineTest.cpp
+        tests/LandmarkBuilderTest.cpp
+        tests/PairSelectorTest.cpp
     )
     target_link_libraries(
         lio_visual_ba_unit_tests
