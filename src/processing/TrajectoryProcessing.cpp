@@ -169,7 +169,7 @@ bool TrajectoryProcessing::smoothTrajectory(
         point.image_id = poses_[index].image_id;
         point.image_name = poses_[index].image_name;
         point.position = weighted_position / weight_sum;
-        point.position.z() = trajectory_height_;
+        if (!options.preserve_height) point.position.z() = trajectory_height_;
         smooth_trajectory_.push_back(std::move(point));
     }
     return true;

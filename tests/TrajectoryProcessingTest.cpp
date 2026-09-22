@@ -91,3 +91,21 @@ TEST(TrajectoryProcessingTest, AlignsBeforeChoosingFixedHeight)
     for (const TrajectoryPoint& point : processing.smoothedTrajectory())
         EXPECT_DOUBLE_EQ(point.position.z(), 20.0);
 }
+
+TEST(TrajectoryProcessingTest, PreservesRecordedElevationWhenRequested)
+{
+    QTemporaryFile file;
+    ASSERT_TRUE(writeText(file,
+        "1 1 0 0 0 0 0 -1 1 a.png\n"
+        "2 1 0 0 0 -1 0 -2 1 b.png\n"
+        "3 1 0 0 0 -2 -1 -4 1 c.png\n"));
+    TrajectoryProcessing processing;
+    ASSERT_TRUE(processing.loadOptimizedCameraPoses(file.fileName().toStdString()));
+    TrajectorySmoothingOptions options;
+    options.preserve_height = true;
+    options.window_radius = 0;
+    ASSERT_TRUE(processing.smoothTrajectory(options));
+    for (std::size_t i = 0; i < processing.poses().size(); ++i)
+        EXPECT_TRUE(processing.smoothedTrajectory()[i].position.isApprox(
+            processing.poses()[i].position_world));
+}

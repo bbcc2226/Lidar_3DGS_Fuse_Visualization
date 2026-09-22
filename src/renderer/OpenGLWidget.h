@@ -40,24 +40,30 @@ public:
     void setGaussianPoints(const std::vector<GaussianPoint>& points,
                            bool has_trained_scale = false,
                            bool has_sh_dc = false,
-                           int sh_degree = 0);
+                           int sh_degree = 0,
+                           bool fit_view = true);
     void setInteractionTransform(const QMatrix4x4& transform,
                                  float yaw_degrees, float pitch_degrees);
     void setZUpGizmo(bool enabled);
     void setNavigationPose(const QVector3D& position, float yaw_degrees);
     void setMiniMapTrajectory(const std::vector<QVector3D>& raw_positions,
-                              const std::vector<QVector3D>& smooth_positions);
+                              const std::vector<QVector3D>& smooth_positions,
+                              bool correct_for_obstacles = true);
     QMatrix4x4 sceneWorldToAlignedTransform() const;
     float robotEyeHeightAligned(float height_meters,
                                 float fallback_height) const;
     void setPathEditMode(bool enabled);
     void zoomPathEditView(float wheel_steps);
+    void setOverviewMode(bool enabled);
+    bool isOverviewMode() const { return overview_mode_; }
+    bool isOrthographicView() const { return path_edit_mode_ || overview_mode_; }
     std::optional<QVector3D> screenToPathPlane(
         const QPoint& screen_position, float aligned_height) const;
     int hitTestManualPathPoint(const QPoint& screen_position,
                                float radius_pixels = 11.0f) const;
     void setManualPath(const std::vector<QVector3D>& points,
                        int selected_index = -1);
+    void setManualPathVisible(bool visible);
     void setFreeZone(
         const std::vector<std::vector<QVector3D>>& completed_polygons,
         const std::vector<QVector3D>& active_vertices, bool active_closed,
@@ -65,6 +71,9 @@ public:
     void setWalkableCells(const std::set<std::pair<int, int>>& cells,
                           float cell_size, float floor_z, float angle_radians);
     void setWalkableCellsVisible(bool visible);
+    bool hasSceneWalkability() const;
+    bool isAlignedPositionInsideScene(const QVector3D& position) const;
+    bool isAlignedPositionWalkable(const QVector3D& position) const;
     int hitTestFreeZoneVertex(const QPoint& screen_position,
                               float radius_pixels = 11.0f) const;
     void setSemanticObjects(const std::vector<SemanticObject>& objects);
@@ -72,6 +81,10 @@ public:
     void setSemanticClassFilter(const QString& filter);
     void setSelectedSemanticObject(int object_id);
     void setSemanticSelectedOnly(bool selected_only);
+    void setSemanticLabelsOnly(bool enabled);
+    void setSemanticVerifiedOnly(bool enabled);
+    void setSemanticHighConfidenceOnly(bool enabled);
+    void setSemantic2DBoxes(bool enabled);
     void setNavigationPlan(const std::vector<QVector3D>& aligned_route,
                            const QVector3D& aligned_target,
                            const QString& destination_name);
@@ -133,8 +146,10 @@ private:
     void rebuildTrajectoryVertexData();
     void paintMiniMap(QPainter& painter);
     void paintManualPath(QPainter& painter);
+    void updateProjectionMatrix(int width, int height);
     void paintSemanticObjects(QPainter& painter);
     void paintNavigationPlan(QPainter& painter);
+    void paintOverviewRobot(QPainter& painter);
     void paintFreeZone(QPainter& painter);
     void paintWalkableCells(QPainter& painter);
     QMatrix4x4 activeAlignedViewProjection() const;
@@ -190,11 +205,16 @@ private:
     std::vector<QVector3D> smooth_trajectory_;
     std::vector<float> trajectory_vertex_data_;
     std::vector<QVector3D> manual_path_;
+    bool manual_path_visible_ = true;
     std::vector<SemanticObject> semantic_objects_;
     QString semantic_class_filter_;
     int selected_semantic_object_id_ = -1;
     bool semantic_objects_visible_ = false;
     bool semantic_selected_only_ = true;
+    bool semantic_labels_only_ = false;
+    bool semantic_verified_only_ = false;
+    bool semantic_high_confidence_only_ = false;
+    bool semantic_2d_boxes_ = false;
     std::vector<QVector3D> navigation_plan_;
     QVector3D navigation_target_;
     bool has_navigation_target_ = false;
@@ -210,8 +230,12 @@ private:
     float walkable_floor_z_ = 0.0f;
     float walkable_grid_angle_radians_ = 0.0f;
     bool walkable_cells_visible_ = true;
+    bool has_scene_walkability_ = false;
+    bool correct_trajectory_for_obstacles_ = true;
     bool trajectory_buffer_dirty_ = true;
     bool path_edit_mode_ = false;
+    bool overview_mode_ = false;
+    QVector4D overview_trim_bounds_ = QVector4D(-1, -1, 1, 1);
     float path_edit_ortho_half_height_ = 1.0f;
     float path_edit_ceiling_cutoff_ = 0.5f;
     float estimated_floor_z_ = 0.0f;

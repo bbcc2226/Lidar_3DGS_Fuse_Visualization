@@ -35,6 +35,8 @@ struct TrajectorySmoothingOptions
     // NaN selects the median camera-center Z. Set an explicit value to use a
     // known floor-relative camera height instead.
     double fixed_height = std::numeric_limits<double>::quiet_NaN();
+    // Recorded outdoor trajectories must retain road elevation changes.
+    bool preserve_height = false;
 };
 
 class TrajectoryProcessing

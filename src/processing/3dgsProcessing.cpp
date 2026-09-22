@@ -123,9 +123,11 @@ int sphericalHarmonicDegree(std::size_t rest_coefficient_count)
 }
 } // namespace
 
-bool GaussianSplatProcessing::loadPly(const std::string& path)
+bool GaussianSplatProcessing::loadPly(
+    const std::string& path, const std::function<void(int)>& progress)
 {
     clear();
+    if (progress) progress(0);
     if (path.empty()) {
         last_error_ = "PLY path is empty.";
         return false;
@@ -309,6 +311,7 @@ bool GaussianSplatProcessing::loadPly(const std::string& path)
     }
 
     std::vector<double> values(properties.size(), 0.0);
+    int last_progress = 0;
     for (std::size_t vertex = 0; vertex < vertex_count; ++vertex) {
         for (std::size_t property = 0; property < properties.size(); ++property) {
             const bool read_ok = format == PlyFormat::Ascii
@@ -376,9 +379,17 @@ bool GaussianSplatProcessing::loadPly(const std::string& path)
                 values[static_cast<std::size_t>(rest_indices[coefficient])]);
         }
         loaded_points.push_back(point);
+        if (progress && (vertex + 1) % 4096 == 0) {
+            const int percent = static_cast<int>(100.0 * (vertex + 1) / vertex_count);
+            if (percent > last_progress) {
+                last_progress = percent;
+                progress(percent);
+            }
+        }
     }
 
     points_ = std::move(loaded_points);
+    if (progress) progress(100);
     return true;
 }
 

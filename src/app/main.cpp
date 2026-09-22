@@ -1,10 +1,13 @@
 #include "MainWindow.h"
 
 #include <QApplication>
+#include <QCommandLineOption>
+#include <QCommandLineParser>
 #include <QFont>
 #include <QPalette>
 #include <QStyleFactory>
 #include <QSurfaceFormat>
+#include <QTimer>
 #include <QtGlobal>
 
 int main(int argc, char* argv[])
@@ -23,7 +26,7 @@ int main(int argc, char* argv[])
     QSurfaceFormat::setDefaultFormat(format);
 
     QApplication application(argc, argv);
-    application.setApplicationName("3DGS Qt OpenGL Viewer");
+    application.setApplicationName("chabot-gpt");
     application.setOrganizationName("Lidar3DGS");
     application.setStyle(QStyleFactory::create("Fusion"));
     application.setFont(QFont("Noto Sans", 10));
@@ -46,6 +49,17 @@ int main(int argc, char* argv[])
     palette.setColor(
         QPalette::Disabled, QPalette::ButtonText, QColor(116, 120, 126));
     application.setPalette(palette);
+
+    QCommandLineParser command_line;
+    command_line.setApplicationDescription("chabot-gpt");
+    command_line.addHelpOption();
+    QCommandLineOption demo_option(
+        "demo", "Launch the preloaded, presentation-focused demo UI.");
+    command_line.addOption(demo_option);
+    QCommandLineOption lidar_option(
+        "lidar", "Load a colored LiDAR PLY at startup.", "path");
+    command_line.addOption(lidar_option);
+    command_line.process(application);
 
     application.setStyleSheet(R"QSS(
         QWidget {
@@ -153,7 +167,13 @@ int main(int argc, char* argv[])
         }
     )QSS");
 
-    MainWindow window;
+    QString lidar_path = command_line.value(lidar_option);
+    if (lidar_path.isEmpty() && !command_line.isSet(demo_option))
+        lidar_path = QStringLiteral(PROJECT_ROOT_DIR) +
+            "/data/kitti/merged_lidar_rgb.ply";
+    MainWindow window(command_line.isSet(demo_option), nullptr, lidar_path);
     window.show();
+    if (command_line.isSet(demo_option))
+        QTimer::singleShot(0, &window, &MainWindow::loadDemoAssets);
     return application.exec();
 }

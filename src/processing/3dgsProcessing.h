@@ -3,6 +3,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -45,7 +46,8 @@ class GaussianSplatProcessing
 public:
     // Supports ASCII and binary little-endian PLY vertex data. Direct RGB is
     // used when present; 3DGS f_dc coefficients are converted to display RGB.
-    bool loadPly(const std::string& path);
+    bool loadPly(const std::string& path,
+                 const std::function<void(int)>& progress = {});
 
     void clear();
 

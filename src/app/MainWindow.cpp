@@ -14,17 +14,26 @@
 #include <QListWidget>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QProgressDialog>
+#include <QApplication>
+#include <QMessageBox>
 #include <QSpinBox>
+#include <QSlider>
 #include <QShortcut>
 #include <QScrollArea>
+#include <QSignalBlocker>
 #include <QTabWidget>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
 
-MainWindow::MainWindow(QWidget* parent)
-    : QMainWindow(parent)
+#include <algorithm>
+
+MainWindow::MainWindow(bool demo_mode, QWidget* parent, const QString& lidar_path)
+    : QMainWindow(parent), demo_mode_(demo_mode)
 {
-    setWindowTitle("3DGS Qt OpenGL Viewer");
+    setWindowTitle(demo_mode_ ? "chabot-gpt — Navigation Demo"
+                              : "chabot-gpt");
     setWindowFlags(windowFlags() | Qt::WindowMinMaxButtonsHint |
                    Qt::WindowMaximizeButtonHint);
     resize(1100, 700);
@@ -76,6 +85,41 @@ MainWindow::MainWindow(QWidget* parent)
     load_status_label_->setWordWrap(true);
     explore_layout->addWidget(open_ply_button);
     explore_layout->addWidget(load_status_label_);
+    auto* source_switch = new QSlider(Qt::Horizontal, panel);
+    source_switch->setObjectName("sourceViewSwitch");
+    source_switch->setRange(0, 1);
+    source_switch->setValue(0);
+    source_switch->setFixedWidth(62);
+    source_switch->setStyleSheet(
+        "QSlider::groove:horizontal { height: 18px; border-radius: 9px; "
+        "background: #58616b; border: 1px solid #7c8792; }"
+        "QSlider::handle:horizontal { width: 26px; margin: -5px 0; "
+        "border-radius: 13px; background: #e8f4f5; border: 2px solid #369f99; }");
+    source_switch->setToolTip(
+        "Switch between the reconstructed 3DGS scene and the merged colored LiDAR scene.");
+    auto* source_3dgs_label = new QLabel("3DGS", panel);
+    auto* source_lidar_label = new QLabel("Colored LiDAR", panel);
+    auto* lidar_spinner = new QLabel("◐", panel);
+    lidar_spinner->setObjectName("lidarLoadingSpinner");
+    lidar_spinner->setStyleSheet("font-size: 18px; color: #65d5cb;");
+    lidar_spinner->setToolTip("Preparing LiDAR points...");
+    lidar_spinner->hide();
+    auto* lidar_spinner_timer = new QTimer(panel);
+    lidar_spinner_timer->setInterval(120);
+    const QStringList spinner_frames = {"◐", "◓", "◑", "◒"};
+    auto* spinner_frame = new int(0);
+    connect(lidar_spinner_timer, &QTimer::timeout, this,
+            [lidar_spinner, spinner_frames, spinner_frame]() {
+                *spinner_frame = (*spinner_frame + 1) % spinner_frames.size();
+                lidar_spinner->setText(spinner_frames.at(*spinner_frame));
+            });
+    auto* source_row = new QHBoxLayout;
+    source_row->addWidget(source_3dgs_label);
+    source_row->addWidget(source_switch);
+    source_row->addWidget(source_lidar_label);
+    source_row->addWidget(lidar_spinner);
+    source_row->addStretch(1);
+    explore_layout->addLayout(source_row);
     auto* open_trajectory_button = new QPushButton("Open trajectory...", panel);
     trajectory_status_label_ = new QLabel("No trajectory loaded", panel);
     trajectory_status_label_->setWordWrap(true);
@@ -133,16 +177,42 @@ MainWindow::MainWindow(QWidget* parent)
     playback_speed->setDecimals(2);
     playback_speed->setSuffix(" m/s");
     playback_speed->setValue(1.0 / 6.0);
+    auto* navigation_speed = new QDoubleSpinBox(panel);
+    navigation_speed->setRange(0.05, 2.0);
+    navigation_speed->setSingleStep(0.05);
+    navigation_speed->setDecimals(2);
+    navigation_speed->setSuffix(" m/s");
+    navigation_speed->setValue(playback_speed->value());
+    navigation_speed->hide();
     robot_playback_status_label_ = new QLabel("No robot path loaded", panel);
     robot_playback_status_label_->setWordWrap(true);
     navigate_layout->addWidget(load_robot_path_button);
     navigate_layout->addWidget(clear_robot_path_button);
     navigate_layout->addWidget(playback_speed);
+    auto* height_mode = new QComboBox(panel);
+    height_mode->setObjectName("trajectoryHeightMode");
+    height_mode->addItems({"Constant height", "Original trajectory height"});
+    height_mode->setToolTip(
+        "Original follows the height of each recorded pose. Constant uses a fixed "
+        "height above the estimated floor. Pause and use Up/Down to adjust either mode.");
+    navigate_layout->addWidget(new QLabel("Playback camera height", panel));
+    navigate_layout->addWidget(height_mode);
+    connect(height_mode, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [this](int index) {
+                viewer_controller_->setUseOriginalTrajectoryHeight(index == 1);
+            });
+    connect(viewer_controller_, &ViewerController::originalTrajectoryHeightChanged,
+            height_mode, [height_mode](bool original) {
+                const QSignalBlocker blocker(height_mode);
+                height_mode->setCurrentIndex(original ? 1 : 0);
+            });
     navigate_layout->addWidget(play_pause_button);
     navigate_layout->addWidget(stop_playback_button);
     navigate_layout->addWidget(robot_playback_status_label_);
     navigate_layout->addSpacing(12);
 
+    auto* overview_button = new QPushButton("Path overview", panel);
+    explore_layout->addWidget(overview_button);
     auto* reset_button = new QPushButton("Reset view", panel);
     auto* working_mode_label = new QLabel("Working mode", panel);
     auto* working_mode = new QComboBox(panel);
@@ -243,10 +313,23 @@ MainWindow::MainWindow(QWidget* parent)
     navigate_layout->addWidget(navigation_plan_status);
 
     auto* open_semantic_button = new QPushButton("Open semantic database...", panel);
+    auto* update_semantic_file = new QPushButton("Update current object file", panel);
+    update_semantic_file->setToolTip("Save verification to the loaded object database and its review file.");
     auto* save_semantic_button = new QPushButton("Save reviews", panel);
     auto* save_semantic_as_button = new QPushButton("Save reviews as...", panel);
-    auto* show_semantic_boxes = new QCheckBox("Show labeled 3D boxes", panel);
+    auto* show_semantic_boxes = new QCheckBox("Show selected object box", panel);
     show_semantic_boxes->setChecked(true);
+    auto* show_all_semantic_labels = new QCheckBox("Show all objects in view", panel);
+    show_all_semantic_labels->setToolTip(
+        "Show labels for all objects in the current view for screenshots, "
+        "ignoring the name filter and keeping the camera in place. "
+        "Enable 2D boxes to add approximate boundaries.");
+    auto* verified_semantic_only = new QCheckBox("Only verified objects", panel);
+    verified_semantic_only->setToolTip("Only display objects marked Confirmed in the view.");
+    auto* semantic_2d_boxes = new QCheckBox("Use approximate 2D boxes", panel);
+    semantic_2d_boxes->setToolTip(
+        "Draw screen-aligned rectangles around projected object bounds. "
+        "Also adds boxes when showing all objects.");
     auto* semantic_filter = new QLineEdit(panel);
     semantic_filter->setPlaceholderText("Filter by object name...");
     auto* semantic_list = new QListWidget(panel);
@@ -268,7 +351,11 @@ MainWindow::MainWindow(QWidget* parent)
     semantic_save_row->addWidget(save_semantic_button);
     semantic_save_row->addWidget(save_semantic_as_button);
     semantic_layout->addLayout(semantic_save_row);
+    semantic_layout->addWidget(update_semantic_file);
     semantic_layout->addWidget(show_semantic_boxes);
+    semantic_layout->addWidget(show_all_semantic_labels);
+    semantic_layout->addWidget(verified_semantic_only);
+    semantic_layout->addWidget(semantic_2d_boxes);
     semantic_layout->addWidget(semantic_filter);
     semantic_layout->addWidget(semantic_list, 1);
     semantic_layout->addWidget(semantic_details);
@@ -280,6 +367,35 @@ MainWindow::MainWindow(QWidget* parent)
 
     connect(open_ply_button, &QPushButton::clicked,
             this, [this]() { viewer_controller_->openPlyFile(this); });
+    connect(source_switch, &QSlider::valueChanged, this,
+            [this, source_3dgs_label, source_lidar_label, lidar_path,
+             lidar_spinner, lidar_spinner_timer](int value) {
+                source_3dgs_label->setStyleSheet(value == 0
+                    ? "font-weight: bold; color: #65d5cb;" : "color: palette(text);");
+                source_lidar_label->setStyleSheet(value == 1
+                    ? "font-weight: bold; color: #65d5cb;" : "color: palette(text);");
+                lidar_spinner->setVisible(value == 1);
+                if (value == 1) lidar_spinner_timer->start();
+                else lidar_spinner_timer->stop();
+                const QString selected_lidar_path = lidar_path.isEmpty()
+                    ? QStringLiteral(PROJECT_ROOT_DIR) +
+                        "/data/lidar_related/dense_lidar_rgb_latest_50MiB.ply"
+                    : lidar_path;
+                if (value == 1) viewer_controller_->loadLidarPointCloud(selected_lidar_path);
+                else viewer_controller_->setLidarViewEnabled(false);
+            });
+    connect(viewer_controller_, &ViewerController::loadStatusChanged, this,
+            [lidar_spinner, lidar_spinner_timer](const QString& text, const QString&) {
+                if (!text.contains("LiDAR", Qt::CaseInsensitive)) return;
+                const bool loading = text.contains("Loading", Qt::CaseInsensitive);
+                lidar_spinner->setVisible(loading);
+                if (!loading) lidar_spinner_timer->stop();
+            });
+    source_3dgs_label->setStyleSheet("font-weight: bold; color: #65d5cb;");
+    if (!lidar_path.isEmpty())
+        QTimer::singleShot(0, source_switch, [source_switch]() {
+            source_switch->setValue(1);
+        });
     connect(open_trajectory_button, &QPushButton::clicked,
             this, [this]() { viewer_controller_->openTrajectoryFile(this); });
     connect(save_path_button, &QPushButton::clicked,
@@ -333,10 +449,22 @@ MainWindow::MainWindow(QWidget* parent)
             });
     connect(playback_speed,
             QOverload<double>::of(&QDoubleSpinBox::valueChanged),
-            this, [this](double speed) {
+            this, [this, navigation_speed](double speed) {
+                navigation_speed->setValue(speed);
                 viewer_controller_->setRobotPlaybackSpeed(
                     static_cast<float>(speed));
             });
+    connect(navigation_speed,
+            QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            this, [this, playback_speed](double speed) {
+                playback_speed->setValue(speed);
+                viewer_controller_->setRobotPlaybackSpeed(
+                    static_cast<float>(speed));
+            });
+    connect(overview_button, &QPushButton::clicked, this, [this, working_mode]() {
+        working_mode->setCurrentIndex(0);
+        viewer_controller_->showPathOverview();
+    });
     connect(reset_button, &QPushButton::clicked,
             viewer_controller_, &ViewerController::resetView);
     connect(working_mode,
@@ -345,8 +473,8 @@ MainWindow::MainWindow(QWidget* parent)
                 viewer_controller_->setPathEditingEnabled(index == 2);
                 viewer_controller_->setFreeZoneEditingEnabled(index == 3);
                 viewer_controller_->setWalkableCellEditingEnabled(index == 4);
-                if (index != 2 && index != 3 && index != 4)
-                    viewer_controller_->setConstrainedZUpNavigation(index == 1);
+                if (index == 0) viewer_controller_->showPathOverview();
+                else if (index == 1) viewer_controller_->setConstrainedZUpNavigation(true);
             });
     connect(background_button, &QPushButton::clicked, this, [this]() {
         const QColor color = QColorDialog::getColor(QColor(25, 30, 42), this,
@@ -381,15 +509,28 @@ MainWindow::MainWindow(QWidget* parent)
             gl_widget_, &OpenGLWidget::setViewportOverlayEnabled);
     connect(open_semantic_button, &QPushButton::clicked, this,
             [this]() { viewer_controller_->loadSemanticDatabase(this); });
+    connect(update_semantic_file, &QPushButton::clicked, this,
+            [this]() { viewer_controller_->saveSemanticObjectFile(this); });
     connect(save_semantic_button, &QPushButton::clicked, this,
             [this]() { viewer_controller_->saveSemanticReviews(this); });
     connect(save_semantic_as_button, &QPushButton::clicked, this,
             [this]() { viewer_controller_->saveSemanticReviews(this, true); });
-    connect(show_semantic_boxes, &QCheckBox::toggled, this,
-            [viewer_controller = viewer_controller_, tabs, semantic_tab](bool checked) {
-                viewer_controller->setSemanticObjectsVisible(
-                    checked && tabs->currentWidget() == semantic_tab);
-            });
+    const auto update_semantic_display =
+        [this, tabs, semantic_tab, show_semantic_boxes, show_all_semantic_labels]() {
+            const bool semantic_mode = tabs->currentWidget() == semantic_tab;
+            const bool labels_only = show_all_semantic_labels->isChecked();
+            show_semantic_boxes->setEnabled(!labels_only);
+            gl_widget_->setSemanticLabelsOnly(labels_only);
+            viewer_controller_->setSemanticVerificationMode(semantic_mode && !labels_only);
+            viewer_controller_->setSemanticObjectsVisible(
+                semantic_mode && (labels_only || show_semantic_boxes->isChecked()));
+        };
+    connect(show_semantic_boxes, &QCheckBox::toggled, this, update_semantic_display);
+    connect(show_all_semantic_labels, &QCheckBox::toggled, this, update_semantic_display);
+    connect(verified_semantic_only, &QCheckBox::toggled,
+            gl_widget_, &OpenGLWidget::setSemanticVerifiedOnly);
+    connect(semantic_2d_boxes, &QCheckBox::toggled,
+            gl_widget_, &OpenGLWidget::setSemantic2DBoxes);
     auto* rotate_left = new QShortcut(QKeySequence(Qt::Key_Left), this);
     auto* rotate_right = new QShortcut(QKeySequence(Qt::Key_Right), this);
     rotate_left->setContext(Qt::WindowShortcut);
@@ -401,15 +542,14 @@ MainWindow::MainWindow(QWidget* parent)
     connect(rotate_right, &QShortcut::activated, this,
             [this]() { viewer_controller_->rotateSemanticView(5.0f); });
     connect(tabs, &QTabWidget::currentChanged, this,
-            [this, tabs, semantic_tab, show_semantic_boxes, semantic_list,
-             rotate_left, rotate_right](int index) {
+            [this, tabs, semantic_tab, show_all_semantic_labels, semantic_list,
+             rotate_left, rotate_right, update_semantic_display](int index) {
                 const bool semantic_mode = tabs->widget(index) == semantic_tab;
                 rotate_left->setEnabled(semantic_mode);
                 rotate_right->setEnabled(semantic_mode);
-                viewer_controller_->setSemanticVerificationMode(semantic_mode);
-                viewer_controller_->setSemanticObjectsVisible(
-                    semantic_mode && show_semantic_boxes->isChecked());
-                if (semantic_mode && semantic_list->currentItem())
+                update_semantic_display();
+                if (semantic_mode && !show_all_semantic_labels->isChecked() &&
+                    semantic_list->currentItem())
                     viewer_controller_->selectSemanticObject(
                         semantic_list->currentItem()->data(Qt::UserRole).toInt());
             });
@@ -484,7 +624,7 @@ MainWindow::MainWindow(QWidget* parent)
                 }
             });
     connect(viewer_controller_, &ViewerController::semanticSelectionChanged,
-            this, [this, semantic_list, semantic_details](int object_id) {
+            this, [this, semantic_list, semantic_details, semantic_filter](int object_id) {
                 const SemanticObject* selected = nullptr;
                 for (const SemanticObject& object : viewer_controller_->semanticObjects())
                     if (object.id == object_id) { selected = &object; break; }
@@ -492,7 +632,10 @@ MainWindow::MainWindow(QWidget* parent)
                 for (int row = 0; row < semantic_list->count(); ++row) {
                     auto* item = semantic_list->item(row);
                     if (item->data(Qt::UserRole).toInt() == object_id) {
+                        if (item->isHidden()) semantic_filter->clear();
+                        const QSignalBlocker blocker(semantic_list);
                         semantic_list->setCurrentItem(item);
+                        semantic_list->scrollToItem(item, QAbstractItemView::EnsureVisible);
                         QColor color(190, 194, 200);
                         if (selected->review == SemanticReviewStatus::Confirmed) color = QColor(55, 220, 105);
                         else if (selected->review == SemanticReviewStatus::Uncertain) color = QColor(255, 195, 55);
@@ -515,4 +658,157 @@ MainWindow::MainWindow(QWidget* parent)
             navigation_plan_status, &QLabel::setText);
     viewer_controller_->setSemanticObjectsVisible(false);
     viewer_controller_->loadDefaultSemanticDatabase();
+
+    if (demo_mode_) {
+        // Keep the full editor untouched for the normal launch. Demo mode
+        // exposes only room exploration/playback and destination navigation.
+        tabs->setTabText(tabs->indexOf(explore_tab), "Explore");
+        tabs->setTabText(tabs->indexOf(navigate_tab), "Navigate");
+        tabs->removeTab(tabs->indexOf(semantic_tab));
+
+        open_ply_button->hide();
+        load_status_label_->hide();
+        open_trajectory_button->hide();
+        trajectory_status_label_->hide();
+        save_path_button->hide();
+        manual_path_status_label_->hide();
+        close_free_zone_button->hide();
+        reopen_free_zone_button->hide();
+        join_free_zone_button->hide();
+        add_free_zone_button->hide();
+        shared_edge_count->hide();
+        shared_edge_direction->hide();
+        clear_free_zone_button->hide();
+        save_free_zone_button->hide();
+        load_free_zone_button->hide();
+        free_zone_status_label_->hide();
+        initialize_cells_button->hide();
+        clear_cells_button->hide();
+        save_cells_button->hide();
+        load_cells_button->hide();
+        show_cells_checkbox->hide();
+        load_robot_path_button->hide();
+        clear_robot_path_button->hide();
+        hint->hide();
+        working_mode_label->hide();
+        working_mode->hide();
+
+        background_button->hide();
+        exposure_label->hide();
+        exposure_control->hide();
+        low_pass_label->hide();
+        low_pass_control->hide();
+        maximum_size_label->hide();
+        maximum_size_control->hide();
+        minimum_opacity_label->hide();
+        minimum_opacity_control->hide();
+        highlight_large_splats->hide();
+        suppress_oversized_splats->hide();
+        show_viewport_grid->hide();
+
+        // Playback follows the preloaded hand-authored exploration route.
+        // Moving these existing widgets preserves their original connections,
+        // speed behavior, and play/pause/resume semantics.
+        const int before_stretch = std::max(0, explore_layout->count() - 1);
+        explore_layout->insertWidget(before_stretch, playback_speed);
+        explore_layout->insertWidget(before_stretch + 1, play_pause_button);
+        explore_layout->insertWidget(before_stretch + 2, stop_playback_button);
+        explore_layout->insertWidget(before_stretch + 3,
+                                     robot_playback_status_label_);
+        auto* show_demo_semantics = new QCheckBox("Show semantic objects (2D boxes)", panel);
+        show_demo_semantics->setObjectName("demoSemanticOverlay");
+        show_demo_semantics->setToolTip(
+            "Show verified (Confirmed), high-confidence objects while exploring. "
+            "Click a box to highlight it and view its information.");
+        auto* demo_object_details = new QLabel("Click an object box to view its description.", panel);
+        demo_object_details->setObjectName("demoSemanticDetails");
+        demo_object_details->setWordWrap(true);
+        demo_object_details->setTextFormat(Qt::PlainText);
+        demo_object_details->setTextInteractionFlags(Qt::TextSelectableByMouse);
+        demo_object_details->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+        auto* demo_details_scroll = new QScrollArea(panel);
+        demo_details_scroll->setWidgetResizable(true);
+        demo_details_scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        demo_details_scroll->setWidget(demo_object_details);
+        demo_details_scroll->setMinimumHeight(120);
+        demo_details_scroll->setMaximumHeight(260);
+        demo_details_scroll->hide();
+        explore_layout->insertWidget(before_stretch + 4, show_demo_semantics);
+        explore_layout->insertWidget(before_stretch + 5, demo_details_scroll);
+        const auto update_demo_semantics =
+            [this, tabs, explore_tab, show_demo_semantics, demo_details_scroll]() {
+                const bool visible = tabs->currentWidget() == explore_tab &&
+                                     show_demo_semantics->isChecked();
+                viewer_controller_->setSemanticVerificationMode(false);
+                gl_widget_->setSemanticLabelsOnly(true);
+                gl_widget_->setSemantic2DBoxes(true);
+                gl_widget_->setSemanticVerifiedOnly(true);
+                gl_widget_->setSemanticHighConfidenceOnly(true);
+                viewer_controller_->setSemanticObjectsVisible(visible);
+                demo_details_scroll->setVisible(visible);
+            };
+        connect(show_demo_semantics, &QCheckBox::toggled, this, update_demo_semantics);
+        connect(tabs, &QTabWidget::currentChanged, this, update_demo_semantics);
+        connect(viewer_controller_, &ViewerController::semanticSelectionChanged, this,
+                [this, demo_object_details](int object_id) {
+                    for (const SemanticObject& object : viewer_controller_->semanticObjects()) {
+                        if (object.id != object_id) continue;
+                        demo_object_details->setText(object.description.isEmpty()
+                            ? "No description available." : object.description);
+                        return;
+                    }
+                    demo_object_details->setText("Click an object box to view its description.");
+                });
+        update_demo_semantics();
+
+        auto* navigation_speed_label = new QLabel("Navigation speed", panel);
+        const int prompt_index = navigate_layout->indexOf(destination_input);
+        navigate_layout->insertWidget(prompt_index, navigation_speed_label);
+        navigate_layout->insertWidget(prompt_index + 1, navigation_speed);
+        navigation_speed->show();
+
+        connect(tabs, &QTabWidget::currentChanged, this,
+                [this, tabs, explore_tab](int) {
+                    gl_widget_->setManualPathVisible(
+                        tabs->currentWidget() == explore_tab);
+                });
+        gl_widget_->setManualPathVisible(true);
+        gl_widget_->setWalkableCellsVisible(false);
+    }
+}
+
+void MainWindow::loadDemoAssets()
+{
+    if (!demo_mode_) return;
+    QProgressDialog progress("Reading 3DGS scene...", QString(), 0, 100, this);
+    progress.setWindowTitle("Loading demo");
+    progress.setWindowModality(Qt::ApplicationModal);
+    progress.setCancelButton(nullptr);
+    progress.setMinimumDuration(0);
+    progress.setAutoClose(false);
+    progress.setAutoReset(false);
+    progress.setValue(0);
+    progress.show();
+    connect(viewer_controller_, &ViewerController::loadProgressChanged, &progress,
+            [&progress](int percent, const QString& stage) {
+                progress.setLabelText(stage);
+                progress.setValue(percent);
+                QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+            });
+    QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+    const QString data = QStringLiteral(PROJECT_ROOT_DIR) + "/data/";
+    if (!viewer_controller_->loadPlyFile(data + "point_cloud_curr_best.ply")) {
+        progress.close();
+        QMessageBox::warning(this, "Demo loading failed", load_status_label_->text());
+        return;
+    }
+    progress.setLabelText("Preparing exploration path...");
+    QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+    viewer_controller_->setConstrainedZUpNavigation(true);
+    viewer_controller_->setConstrainedZUpNavigation(false);
+    if (!viewer_controller_->loadRobotPathFile(data + "9_12_manual_path.json"))
+        return;
+    viewer_controller_->loadWalkableCellsFile(
+        data + "9_10walkable_cells.json");
+    viewer_controller_->showPathOverview();
 }

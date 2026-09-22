@@ -37,6 +37,7 @@ RobotPathPlayer::RobotPathPlayer(QObject* parent)
 bool RobotPathPlayer::loadPath(const QString& path)
 {
     stop();
+    uses_recorded_height_ = false;
     world_points_.clear();
     cumulative_distance_.clear();
     last_error_.clear();
@@ -84,6 +85,7 @@ bool RobotPathPlayer::loadPath(const QString& path)
         return false;
     }
     has_final_look_target_ = false;
+    uses_recorded_height_ = root.value("height_mode").toString() == "recorded";
     final_turn_active_ = false;
     rebuildDistances();
     emit playbackStateChanged(
@@ -115,6 +117,7 @@ bool RobotPathPlayer::setPlannedPath(
     const QVector3D& final_look_target_world)
 {
     stop();
+    uses_recorded_height_ = false;
     world_points_.clear();
     for (const QVector3D& point : world_points) {
         if (world_points_.empty() ||
@@ -241,6 +244,7 @@ void RobotPathPlayer::stop()
 
 void RobotPathPlayer::clearPath()
 {
+    uses_recorded_height_ = false;
     timer_.stop();
     world_points_.clear();
     cumulative_distance_.clear();

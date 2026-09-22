@@ -26,6 +26,7 @@ public:
     void clearPath();
 
     bool hasPath() const { return !world_points_.empty(); }
+    bool usesRecordedHeight() const { return uses_recorded_height_; }
     bool isPlaying() const { return timer_.isActive(); }
     const std::vector<QVector3D>& worldPoints() const { return world_points_; }
     QVector3D currentWorldPosition() const;
@@ -59,4 +60,5 @@ private:
     QVector3D final_look_target_world_;
     bool has_final_look_target_ = false;
     bool final_turn_active_ = false;
+    bool uses_recorded_height_ = false;
 };

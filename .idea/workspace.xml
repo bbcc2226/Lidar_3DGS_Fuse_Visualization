@@ -12,12 +12,26 @@
     <configurations />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="e1a02559-47c6-4734-9473-6c916dcb5f70" name="Changes" comment="optimize gs splat loading&#10;add small outline map">
+    <list default="true" id="e1a02559-47c6-4734-9473-6c916dcb5f70" name="Changes" comment="add trajectory on scene">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/CMakeLists.txt" beforeDir="false" afterPath="$PROJECT_DIR$/CMakeLists.txt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Testing/Temporary/LastTest.log" beforeDir="false" afterPath="$PROJECT_DIR$/Testing/Temporary/LastTest.log" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/include/TrajectoryProcessing.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/TrajectoryProcessing.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/MainWindow.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/MainWindow.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/MainWindow.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/MainWindow.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/app/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/RobotPathPlayer.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/RobotPathPlayer.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/RobotPathPlayer.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/RobotPathPlayer.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/app/ViewerController.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/ViewerController.cpp" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/app/ViewerController.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/ViewerController.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/main.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/main.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/processing/3dgsProcessing.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/processing/3dgsProcessing.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/processing/3dgsProcessing.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/processing/3dgsProcessing.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/processing/TrajectoryProcessing.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/processing/TrajectoryProcessing.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/renderer/OpenGLWidget.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/renderer/OpenGLWidget.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/renderer/OpenGLWidget.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/renderer/OpenGLWidget.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/GaussianProcessingTest.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/tests/GaussianProcessingTest.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/TrajectoryProcessingTest.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/tests/TrajectoryProcessingTest.cpp" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -43,9 +57,19 @@
   }
 }</component>
   <component name="HighlightingSettingsPerFile">
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/include/TrajectoryProcessing.h" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/app/MainWindow.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/app/MainWindow.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/app/MainWindow.h" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/app/ViewerController.h" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/app/ViewerController.h" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/app/main.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/processing/TrajectoryProcessing.cpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/renderer/OpenGLWidget.h" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/renderer/OpenGLWidget.h" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/renderer/OpenGLWidget.h" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/tests/TrajectoryProcessingTest.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/tests/TrajectoryProcessingTest.cpp" root0="SKIP_HIGHLIGHTING" />
   </component>
   <component name="ProjectColorInfo">{
   &quot;customColor&quot;: &quot;&quot;,
@@ -56,28 +80,29 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;RunOnceActivity.RadMigrateCodeStyle&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.cidr.known.project.marker&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.readMode.enableVisualFormatting&quot;: &quot;true&quot;,
-    &quot;cf.first.check.clang-format&quot;: &quot;false&quot;,
-    &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;vis__branch&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/home/chuchu/Lidar_3DGS_Fuse_Visualization/data&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "RunOnceActivity.RadMigrateCodeStyle": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager": "true",
+    "RunOnceActivity.cidr.known.project.marker": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.readMode.enableVisualFormatting": "true",
+    "cf.first.check.clang-format": "false",
+    "cidr.known.project.marker": "true",
+    "git-widget-placeholder": "vis__branch",
+    "last_opened_file_path": "/home/chuchu/Lidar_3DGS_Fuse_Visualization/data",
+    "node.js.detected.package.eslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/data" />
+      <recent name="$PROJECT_DIR$/data/scementic_objects" />
     </key>
   </component>
   <component name="TaskManager">
@@ -104,7 +129,7 @@
       <option name="presentableId" value="Default" />
       <updated>1787013778334</updated>
       <workItem from="1787013781465" duration="6659000" />
-      <workItem from="1787635887959" duration="4618000" />
+      <workItem from="1787635887959" duration="103668000" />
     </task>
     <task id="LOCAL-00003" summary="add gizmo and addsome mouse event">
       <option name="closed" value="true" />
@@ -330,16 +355,61 @@
       <option name="project" value="LOCAL" />
       <updated>1787712405750</updated>
     </task>
-    <option name="localTasksCounter" value="31" />
+    <task id="LOCAL-00031" summary="optimize gs splat loading&#10;add small outline map">
+      <option name="closed" value="true" />
+      <created>1787722915602</created>
+      <option name="number" value="00031" />
+      <option name="presentableId" value="LOCAL-00031" />
+      <option name="project" value="LOCAL" />
+      <updated>1787722915602</updated>
+    </task>
+    <task id="LOCAL-00032" summary="load optimized camera pose">
+      <option name="closed" value="true" />
+      <created>1787804660319</created>
+      <option name="number" value="00032" />
+      <option name="presentableId" value="LOCAL-00032" />
+      <option name="project" value="LOCAL" />
+      <updated>1787804660319</updated>
+    </task>
+    <task id="LOCAL-00033" summary="load optimized camera pose">
+      <option name="closed" value="true" />
+      <created>1787804672475</created>
+      <option name="number" value="00033" />
+      <option name="presentableId" value="LOCAL-00033" />
+      <option name="project" value="LOCAL" />
+      <updated>1787804672475</updated>
+    </task>
+    <task id="LOCAL-00034" summary="create smooth trajectory and display it on the mini map">
+      <option name="closed" value="true" />
+      <created>1787805560894</created>
+      <option name="number" value="00034" />
+      <option name="presentableId" value="LOCAL-00034" />
+      <option name="project" value="LOCAL" />
+      <updated>1787805560894</updated>
+    </task>
+    <task id="LOCAL-00035" summary="create smooth trajectory and display it on the mini map">
+      <option name="closed" value="true" />
+      <created>1787805790133</created>
+      <option name="number" value="00035" />
+      <option name="presentableId" value="LOCAL-00035" />
+      <option name="project" value="LOCAL" />
+      <updated>1787805790133</updated>
+    </task>
+    <task id="LOCAL-00036" summary="add trajectory on scene">
+      <option name="closed" value="true" />
+      <created>1787806499954</created>
+      <option name="number" value="00036" />
+      <option name="presentableId" value="LOCAL-00036" />
+      <option name="project" value="LOCAL" />
+      <updated>1787806499954</updated>
+    </task>
+    <option name="localTasksCounter" value="37" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="add 3dgs data loading" />
-    <MESSAGE value="-add gpu splat structure" />
-    <MESSAGE value="Gaussian is now rendered as an opaque six-pixel square instead of a GL_POINT" />
     <MESSAGE value="draw a circle rather than square" />
     <MESSAGE value="add opacity" />
     <MESSAGE value="clean up" />
@@ -362,6 +432,9 @@
     <MESSAGE value="degree-1 view-dependent spherical-harmonic color" />
     <MESSAGE value="optimize gs splat loading and gl performance for better rotate" />
     <MESSAGE value="optimize gs splat loading&#10;add small outline map" />
-    <option name="LAST_COMMIT_MESSAGE" value="optimize gs splat loading&#10;add small outline map" />
+    <MESSAGE value="load optimized camera pose" />
+    <MESSAGE value="create smooth trajectory and display it on the mini map" />
+    <MESSAGE value="add trajectory on scene" />
+    <option name="LAST_COMMIT_MESSAGE" value="add trajectory on scene" />
   </component>
 </project>

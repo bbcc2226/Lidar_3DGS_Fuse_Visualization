@@ -20,7 +20,7 @@ find_package(yaml-cpp REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(TBB REQUIRED)
 find_package(Threads REQUIRED)
-find_package(Qt5 5.12 REQUIRED COMPONENTS Core Gui Widgets OpenGL)
+find_package(Qt5 5.12 REQUIRED COMPONENTS Core Gui Widgets OpenGL Concurrent)
 
 file(GLOB_RECURSE PROJECT_SOURCES CONFIGURE_DEPENDS
         "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
@@ -60,6 +60,7 @@ target_link_libraries(${PROJECT_NAME}_lib
         Qt5::Gui
         Qt5::Widgets
         Qt5::OpenGL
+        Qt5::Concurrent
 )
 
 target_compile_definitions(${PROJECT_NAME}_lib
@@ -85,6 +86,12 @@ add_executable(${PROJECT_NAME}_qt_viewer
         src/app/MainWindow.h
         src/app/ViewerController.cpp
         src/app/ViewerController.h
+        src/app/viewer_controller/ViewerControllerSemantic.cpp
+        src/app/viewer_controller/ViewerControllerNavigation.cpp
+        src/app/viewer_controller/ViewerControllerIo.cpp
+        src/app/viewer_controller/ViewerControllerPathEditing.cpp
+        src/app/viewer_controller/ViewerControllerInput.cpp
+        src/app/viewer_controller/ViewerControllerInternals.h
         src/app/RobotPathPlayer.cpp
         src/app/RobotPathPlayer.h
         src/app/SemanticObject.h
@@ -117,6 +124,7 @@ target_link_libraries(${PROJECT_NAME}_qt_viewer
         Qt5::Gui
         Qt5::Widgets
         Qt5::OpenGL
+        Qt5::Concurrent
 )
 
 target_compile_definitions(${PROJECT_NAME}_qt_viewer
