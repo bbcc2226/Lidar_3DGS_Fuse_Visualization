@@ -36,6 +36,51 @@ Retire superseded programs later, relocating any still-needed utilities before
 removing that directory. Preserve reference outputs and migration tests needed
 to verify compatibility.
 
+## Shared pipeline architecture
+
+The C++ and Python implementations follow the same LIO-based visual SLAM
+architecture. Both use LIO poses and camera/LiDAR calibration to initialize a
+metric camera trajectory, optimize that trajectory with sparse visual geometry,
+and export data suitable for 3D Gaussian Splatting (3DGS) training.
+
+```text
+images + timestamps + LIO poses + calibration
+                     |
+                     v
+          camera-pose initialization from LIO
+                     |
+                     v
+         feature detection, matching, and tracks
+                     |
+                     v
+          geometric verification and triangulation
+                     |
+                     v
+          camera-pose and landmark optimization
+                     |
+                     v
+             track extension and cleanup
+                     |
+                     v
+       sparse model, poses, and validation metrics
+                     |
+                     v
+              3DGS training data
+```
+
+The architecture is shared; the implementation differs:
+
+- **C++**: maintained production pipeline in `src/` and `include/`, built with
+  CMake and executed through `lio_visual_ba_pipeline`.
+- **Python**: reference and experimentation workflow in
+  `scripts/python_version/`, using `run_multiround_pipeline.sh` for the same
+  initialization, geometry, optimization, and validation stages.
+
+The shared output contract includes optimized camera poses, sparse landmarks,
+tracks, validation metrics, and a COLMAP-compatible `sparse/0/` model. Dense
+depth generation and other optional products remain separate post-processing
+tools rather than part of the core sparse-SLAM architecture.
+
 ## 2. Current repository architecture
 
 The repository currently has two overlapping implementations.
@@ -159,6 +204,58 @@ exports, but the mapping must be explicit and deterministic.
 No API may use an unnamed transform convention. Transform variables and fields
 must state their direction, such as `world_from_camera` or
 `camera_from_lidar`.
+
+## Dataset I/O contract
+
+`DatasetIO` owns YAML configuration, input paths, camera records, calibration,
+and the LIO trajectory. Its public API is declared in
+[`include/dataset_io.hpp`](include/dataset_io.hpp) and implemented in
+[`src/dataset_io.cpp`](src/dataset_io.cpp).
+
+### Required inputs
+
+- `timestamp_file`: one `image_filename timestamp_seconds` record per line.
+  Blank lines and comments beginning with `#` are ignored. Filenames are
+  resolved relative to `image_directory`.
+- `image_directory`: directory containing the configured camera images.
+- `intrinsics_file`: comma- or whitespace-delimited pinhole $3 \times 3$
+  calibration matrix. Image width and height are supplied separately in YAML.
+- `extrinsic_file`: JSON camera/LiDAR calibration containing `T_camera_lidar`.
+  `DatasetIO` validates the rigid transform and returns its inverse as
+  `lidar_from_camera`.
+- `trajectory_file`: consecutive JSON objects containing `timestamp` and
+  `lio_pose`. Objects may be one-line or pretty-printed and are not wrapped in
+  a JSON array.
+
+The trajectory loader reads `lio_pose.translation` in meters and
+`lio_pose.quaternion_xyzw` as `[qx, qy, qz, qw]`, interprets the pose as
+`world_from_lidar`, normalizes valid quaternions, sorts by timestamp, and
+rejects duplicate timestamps. At least two valid trajectory poses are required.
+Additional metadata such as `key_frame_id`, `saved_frame_path`, and
+`optimized_pose` is ignored by this loader.
+
+### Configuration rules
+
+`DatasetIO::LoadConfig` resolves relative paths against the YAML file's
+directory. Image dimensions must be positive. Accepted image records receive
+compact camera IDs in input order after missing-image filtering; disabling
+strict timestamp ordering preserves that order and does not sort the records.
+`maximum_images` can cap the accepted records, while `-1` means unlimited.
+Camera time offset is applied later by Mapper during pose initialization, not by
+the input parser.
+
+The core transform convention is:
+
+```text
+point_world = rotation_world_from_local * point_local
+            + translation_world_from_local
+world_from_camera = world_from_lidar * lidar_from_camera
+```
+
+Dataset loading returns data only. Mapper owns LIO interpolation and camera-pose
+initialization; FeatureProcessor owns image decoding and visual features.
+DatasetIO tests cover calibration, image-list, trajectory, and YAML-to-dataset
+loading behavior.
 
 ## 6. Component responsibilities
 
