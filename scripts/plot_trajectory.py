@@ -14,6 +14,8 @@ import glob
 import os
 
 import matplotlib.pyplot as plt
+from matplotlib.collections import LineCollection
+from matplotlib.colors import Normalize
 import numpy as np
 
 
@@ -88,8 +90,11 @@ def main():
     parser.add_argument("--heading", action="store_true", help="Draw camera heading arrows along each trajectory.")
     parser.add_argument("--heading-stride", type=int, default=10, help="Draw a heading arrow every N poses (default 10).")
     parser.add_argument("--heading-scale", type=float, default=1.0, help="Length scale for heading arrows.")
+    parser.add_argument("--fancy", action="store_true", help="Use a cleaner time-colored comparison style for top-view plots.")
     parser.add_argument("--out", default=None, help="If set, save the figure to this path instead of showing it.")
     args = parser.parse_args()
+
+    plt.style.use("seaborn-v0_8-whitegrid")
 
     files = args.files if args.files else default_files(args.dir, args.all_iters)
     files = [f for f in files if os.path.exists(f)]
@@ -103,14 +108,46 @@ def main():
             positions = align_start(positions)
         trajectories.append((os.path.splitext(os.path.basename(f))[0], positions, quats))
 
-    fig = plt.figure(figsize=(9, 7))
+    fig = plt.figure(figsize=(10, 7), facecolor="white")
     ax = fig.add_subplot(111) if args.top_view else fig.add_subplot(111, projection="3d")
+    colors = ["#1769aa", "#e07a35", "#2a9d8f", "#8c5aa8", "#c44536"]
 
-    for name, positions, quats in trajectories:
-        if args.top_view:
-            line, = ax.plot(positions[:, 0], positions[:, 1], marker="o", markersize=2, label=name)
+    for index, (name, positions, quats) in enumerate(trajectories):
+        color = colors[index % len(colors)]
+        if args.fancy and args.top_view and len(trajectories) == 2 and index == 0:
+            line, = ax.plot(
+                positions[:, 0], positions[:, 1], color="#9aa5b1", linewidth=1.6,
+                linestyle="--", alpha=0.7, label=f"{name} (reference)")
+        elif args.fancy and args.top_view and len(trajectories) == 2 and index == 1:
+            points = positions[:, :2].reshape(-1, 1, 2)
+            segments = np.concatenate([points[:-1], points[1:]], axis=1)
+            line_collection = LineCollection(
+                segments, cmap="viridis", norm=Normalize(0, max(1, len(segments) - 1)),
+                linewidth=2.8, alpha=0.95, label=name)
+            line_collection.set_array(np.arange(len(segments)))
+            ax.add_collection(line_collection)
+            line = line_collection
+            ax.autoscale_view()
+            ax.scatter(
+                positions[:, 0], positions[:, 1], c=np.arange(len(positions)),
+                cmap="viridis", norm=Normalize(0, max(1, len(positions) - 1)),
+                s=5, alpha=0.55, linewidths=0, zorder=3)
+        elif args.top_view:
+            line, = ax.plot(
+                positions[:, 0], positions[:, 1], color=color, linewidth=2.4, label=name)
         else:
-            line, = ax.plot(positions[:, 0], positions[:, 1], positions[:, 2], marker="o", markersize=2, label=name)
+            line, = ax.plot(
+                positions[:, 0], positions[:, 1], positions[:, 2],
+                color=color, linewidth=2.4, label=name)
+
+        start = positions[0]
+        finish = positions[-1]
+        if args.top_view:
+            ax.scatter(*start[:2], color=color, edgecolor="white", s=70, zorder=5)
+            ax.scatter(*finish[:2], color=color, edgecolor="white", marker="s", s=70, zorder=5)
+        else:
+            ax.scatter(*start, color=color, edgecolor="white", s=70)
+            ax.scatter(*finish, color=color, edgecolor="white", marker="s", s=70)
 
         if args.heading:
             headings = quat_to_heading(quats)
@@ -138,8 +175,16 @@ def main():
     ax.set_ylabel("Y")
     if not args.top_view:
         ax.set_zlabel("Z")
-    ax.set_title("Camera trajectory comparison")
-    ax.legend()
+    ax.set_title("Camera trajectory comparison", fontsize=15, fontweight="bold", pad=14)
+    ax.legend(frameon=True, facecolor="white", edgecolor="#d0d7de")
+    ax.grid(True, color="#d9e1e8", linewidth=0.8, alpha=0.8)
+    if args.top_view:
+        ax.set_aspect("equal", adjustable="box")
+        if args.fancy and len(trajectories) == 2:
+            colorbar = fig.colorbar(line_collection, ax=ax, pad=0.02, fraction=0.04)
+            colorbar.set_label("Frame progression")
+    else:
+        ax.set_box_aspect((1.25, 1.0, 0.65))
     plt.tight_layout()
 
     if args.out:
