@@ -1,0 +1,440 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="BackendCodeEditorMiscSettings">
+    <option name="/Default/Housekeeping/FeatureSuggestion/FeatureSuggestionManager/DisabledSuggesters/=SwitchToGoToActionSuggester/@EntryIndexedValue" value="true" type="bool" />
+    <option name="/Default/Housekeeping/GlobalSettingsUpgraded/IsUpgraded/@EntryValue" value="true" type="bool" />
+    <option name="/Default/RiderDebugger/RiderRestoreDecompile/RestoreDecompileSetting/@EntryValue" value="false" type="bool" />
+  </component>
+  <component name="CMakeSettings">
+    <configurations />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="e1a02559-47c6-4734-9473-6c916dcb5f70" name="Changes" comment="add trajectory on scene">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/CMakeLists.txt" beforeDir="false" afterPath="$PROJECT_DIR$/CMakeLists.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Testing/Temporary/LastTest.log" beforeDir="false" afterPath="$PROJECT_DIR$/Testing/Temporary/LastTest.log" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/include/TrajectoryProcessing.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/TrajectoryProcessing.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/MainWindow.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/MainWindow.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/MainWindow.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/MainWindow.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/RobotPathPlayer.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/RobotPathPlayer.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/RobotPathPlayer.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/RobotPathPlayer.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/ViewerController.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/ViewerController.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/ViewerController.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/ViewerController.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/main.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/main.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/processing/3dgsProcessing.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/processing/3dgsProcessing.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/processing/3dgsProcessing.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/processing/3dgsProcessing.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/processing/TrajectoryProcessing.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/processing/TrajectoryProcessing.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/renderer/OpenGLWidget.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/renderer/OpenGLWidget.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/renderer/OpenGLWidget.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/renderer/OpenGLWidget.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/GaussianProcessingTest.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/tests/GaussianProcessingTest.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/TrajectoryProcessingTest.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/tests/TrajectoryProcessingTest.cpp" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ClangdSettings">
+    <option name="formatViaClangd" value="false" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;Chuyingbbcc&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/Chuyingbbcc/Lidar_3DGS_Fuse_Visualization.git&quot;,
+    &quot;accountId&quot;: &quot;8c6684ed-2c98-40a4-8be1-f5f07696a534&quot;
+  }
+}</component>
+  <component name="HighlightingSettingsPerFile">
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/include/TrajectoryProcessing.h" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/app/MainWindow.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/app/MainWindow.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/app/MainWindow.h" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/app/ViewerController.h" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/app/ViewerController.h" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/app/main.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/processing/TrajectoryProcessing.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/renderer/OpenGLWidget.h" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/renderer/OpenGLWidget.h" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/src/renderer/OpenGLWidget.h" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/tests/TrajectoryProcessingTest.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///home/chuchu/Lidar_3DGS_Fuse_Visualization/tests/TrajectoryProcessingTest.cpp" root0="SKIP_HIGHLIGHTING" />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;customColor&quot;: &quot;&quot;,
+  &quot;associatedIndex&quot;: 2
+}</component>
+  <component name="ProjectId" id="3I4B5JNPffuU5vOZ9cVGOJ9JnSE" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "RunOnceActivity.RadMigrateCodeStyle": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager": "true",
+    "RunOnceActivity.cidr.known.project.marker": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.readMode.enableVisualFormatting": "true",
+    "cf.first.check.clang-format": "false",
+    "cidr.known.project.marker": "true",
+    "git-widget-placeholder": "vis__branch",
+    "last_opened_file_path": "/home/chuchu/Lidar_3DGS_Fuse_Visualization/data",
+    "node.js.detected.package.eslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/data" />
+      <recent name="$PROJECT_DIR$/data/scementic_objects" />
+    </key>
+  </component>
+  <component name="TaskManager">
+    <task id="LOCAL-00001" summary="1. load 3dgs ply file &#10;2. draw 3dgs 3d points">
+      <option name="closed" value="true" />
+      <created>1787011843970</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1787011843970</updated>
+    </task>
+    <task id="LOCAL-00002" summary="add mvp">
+      <option name="closed" value="true" />
+      <created>1787013142279</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1787013142279</updated>
+    </task>
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="e1a02559-47c6-4734-9473-6c916dcb5f70" name="Changes" comment="add mvp" />
+      <created>1787013778334</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1787013778334</updated>
+      <workItem from="1787013781465" duration="6659000" />
+      <workItem from="1787635887959" duration="103668000" />
+    </task>
+    <task id="LOCAL-00003" summary="add gizmo and addsome mouse event">
+      <option name="closed" value="true" />
+      <created>1787110087967</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1787110087967</updated>
+    </task>
+    <task id="LOCAL-00004" summary="add gizmo and addsome mouse event">
+      <option name="closed" value="true" />
+      <created>1787110324018</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1787110324018</updated>
+    </task>
+    <task id="LOCAL-00005" summary="test gauss load">
+      <option name="closed" value="true" />
+      <created>1787286330810</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1787286330810</updated>
+    </task>
+    <task id="LOCAL-00006" summary="add 3dgs data loading">
+      <option name="closed" value="true" />
+      <created>1787288342532</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1787288342532</updated>
+    </task>
+    <task id="LOCAL-00007" summary="-add gpu splat structure">
+      <option name="closed" value="true" />
+      <created>1787289256239</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1787289256239</updated>
+    </task>
+    <task id="LOCAL-00008" summary="Gaussian is now rendered as an opaque six-pixel square instead of a GL_POINT">
+      <option name="closed" value="true" />
+      <created>1787291715192</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1787291715192</updated>
+    </task>
+    <task id="LOCAL-00009" summary="draw a circle rather than square">
+      <option name="closed" value="true" />
+      <created>1787430939000</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1787430939000</updated>
+    </task>
+    <task id="LOCAL-00010" summary="add opacity">
+      <option name="closed" value="true" />
+      <created>1787440153365</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1787440153365</updated>
+    </task>
+    <task id="LOCAL-00011" summary="clean up">
+      <option name="closed" value="true" />
+      <created>1787441362332</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1787441362332</updated>
+    </task>
+    <task id="LOCAL-00012" summary="add scale to splat">
+      <option name="closed" value="true" />
+      <created>1787442749879</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1787442749879</updated>
+    </task>
+    <task id="LOCAL-00013" summary="change splat to different size each dimension">
+      <option name="closed" value="true" />
+      <created>1787529979951</created>
+      <option name="number" value="00013" />
+      <option name="presentableId" value="LOCAL-00013" />
+      <option name="project" value="LOCAL" />
+      <updated>1787529979951</updated>
+    </task>
+    <task id="LOCAL-00014" summary="change to xy ellipse">
+      <option name="closed" value="true" />
+      <created>1787531307581</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1787531307581</updated>
+    </task>
+    <task id="LOCAL-00015" summary="add quaternion">
+      <option name="closed" value="true" />
+      <created>1787532238544</created>
+      <option name="number" value="00015" />
+      <option name="presentableId" value="LOCAL-00015" />
+      <option name="project" value="LOCAL" />
+      <updated>1787532238544</updated>
+    </task>
+    <task id="LOCAL-00016" summary="add quaternion conversion">
+      <option name="closed" value="true" />
+      <created>1787540200547</created>
+      <option name="number" value="00016" />
+      <option name="presentableId" value="LOCAL-00016" />
+      <option name="project" value="LOCAL" />
+      <updated>1787540200547</updated>
+    </task>
+    <task id="LOCAL-00017" summary="Gaussian covariance is expressed in camera coordinates.">
+      <option name="closed" value="true" />
+      <created>1787540564048</created>
+      <option name="number" value="00017" />
+      <option name="presentableId" value="LOCAL-00017" />
+      <option name="project" value="LOCAL" />
+      <updated>1787540564048</updated>
+    </task>
+    <task id="LOCAL-00018" summary="projection Jacobian">
+      <option name="closed" value="true" />
+      <created>1787541092899</created>
+      <option name="number" value="00018" />
+      <option name="presentableId" value="LOCAL-00018" />
+      <option name="project" value="LOCAL" />
+      <updated>1787541092899</updated>
+    </task>
+    <task id="LOCAL-00019" summary="covariance_screen now describes the Gaussian’s variance, aspect ratio, and orientation on the screen.">
+      <option name="closed" value="true" />
+      <created>1787541321062</created>
+      <option name="number" value="00019" />
+      <option name="presentableId" value="LOCAL-00019" />
+      <option name="project" value="LOCAL" />
+      <updated>1787541321062</updated>
+    </task>
+    <task id="LOCAL-00020" summary="ellipse eigen vector">
+      <option name="closed" value="true" />
+      <created>1787552582650</created>
+      <option name="number" value="00020" />
+      <option name="presentableId" value="LOCAL-00020" />
+      <option name="project" value="LOCAL" />
+      <updated>1787552582650</updated>
+    </task>
+    <task id="LOCAL-00021" summary="  - Diagonally oriented ellipses&#10;  - Quaternion-dependent orientation&#10;  - Contributions from all three trained scales&#10;  - Perspective-dependent size&#10;  - Ellipse orientation that changes while rotating the model">
+      <option name="closed" value="true" />
+      <created>1787553127078</created>
+      <option name="number" value="00021" />
+      <option name="presentableId" value="LOCAL-00021" />
+      <option name="project" value="LOCAL" />
+      <updated>1787553127078</updated>
+    </task>
+    <task id="LOCAL-00022" summary="isotropic low-pass variance">
+      <option name="closed" value="true" />
+      <created>1787595019674</created>
+      <option name="number" value="00022" />
+      <option name="presentableId" value="LOCAL-00022" />
+      <option name="project" value="LOCAL" />
+      <updated>1787595019674</updated>
+    </task>
+    <task id="LOCAL-00023" summary="sort splat by depth">
+      <option name="closed" value="true" />
+      <created>1787596378274</created>
+      <option name="number" value="00023" />
+      <option name="presentableId" value="LOCAL-00023" />
+      <option name="project" value="LOCAL" />
+      <updated>1787596378274</updated>
+    </task>
+    <task id="LOCAL-00024" summary="reject behind camera splat">
+      <option name="closed" value="true" />
+      <created>1787596811882</created>
+      <option name="number" value="00024" />
+      <option name="presentableId" value="LOCAL-00024" />
+      <option name="project" value="LOCAL" />
+      <updated>1787596811882</updated>
+    </task>
+    <task id="LOCAL-00025" summary="screen-frustum culling">
+      <option name="closed" value="true" />
+      <created>1787597344352</created>
+      <option name="number" value="00025" />
+      <option name="presentableId" value="LOCAL-00025" />
+      <option name="project" value="LOCAL" />
+      <updated>1787597344352</updated>
+    </task>
+    <task id="LOCAL-00026" summary="sh coefficients">
+      <option name="closed" value="true" />
+      <created>1787598075713</created>
+      <option name="number" value="00026" />
+      <option name="presentableId" value="LOCAL-00026" />
+      <option name="project" value="LOCAL" />
+      <updated>1787598075713</updated>
+    </task>
+    <task id="LOCAL-00027" summary="  - Added raw sh_dc values to each GPU splat instance.&#10;  - Added vertex attribute location 6 for SH DC.&#10;  - Passed metadata.has_sh_dc into the renderer.&#10;  - Evaluated degree-zero SH in the vertex shader:">
+      <option name="closed" value="true" />
+      <created>1787598311606</created>
+      <option name="number" value="00027" />
+      <option name="presentableId" value="LOCAL-00027" />
+      <option name="project" value="LOCAL" />
+      <updated>1787598311606</updated>
+    </task>
+    <task id="LOCAL-00028" summary="degree-1 view-dependent spherical-harmonic color">
+      <option name="closed" value="true" />
+      <created>1787598552778</created>
+      <option name="number" value="00028" />
+      <option name="presentableId" value="LOCAL-00028" />
+      <option name="project" value="LOCAL" />
+      <updated>1787598552778</updated>
+    </task>
+    <task id="LOCAL-00029" summary="optimize gs splat loading and gl performance for better rotate">
+      <option name="closed" value="true" />
+      <created>1787609092106</created>
+      <option name="number" value="00029" />
+      <option name="presentableId" value="LOCAL-00029" />
+      <option name="project" value="LOCAL" />
+      <updated>1787609092106</updated>
+    </task>
+    <task id="LOCAL-00030" summary="optimize gs splat loading&#10;add small outline map">
+      <option name="closed" value="true" />
+      <created>1787712405750</created>
+      <option name="number" value="00030" />
+      <option name="presentableId" value="LOCAL-00030" />
+      <option name="project" value="LOCAL" />
+      <updated>1787712405750</updated>
+    </task>
+    <task id="LOCAL-00031" summary="optimize gs splat loading&#10;add small outline map">
+      <option name="closed" value="true" />
+      <created>1787722915602</created>
+      <option name="number" value="00031" />
+      <option name="presentableId" value="LOCAL-00031" />
+      <option name="project" value="LOCAL" />
+      <updated>1787722915602</updated>
+    </task>
+    <task id="LOCAL-00032" summary="load optimized camera pose">
+      <option name="closed" value="true" />
+      <created>1787804660319</created>
+      <option name="number" value="00032" />
+      <option name="presentableId" value="LOCAL-00032" />
+      <option name="project" value="LOCAL" />
+      <updated>1787804660319</updated>
+    </task>
+    <task id="LOCAL-00033" summary="load optimized camera pose">
+      <option name="closed" value="true" />
+      <created>1787804672475</created>
+      <option name="number" value="00033" />
+      <option name="presentableId" value="LOCAL-00033" />
+      <option name="project" value="LOCAL" />
+      <updated>1787804672475</updated>
+    </task>
+    <task id="LOCAL-00034" summary="create smooth trajectory and display it on the mini map">
+      <option name="closed" value="true" />
+      <created>1787805560894</created>
+      <option name="number" value="00034" />
+      <option name="presentableId" value="LOCAL-00034" />
+      <option name="project" value="LOCAL" />
+      <updated>1787805560894</updated>
+    </task>
+    <task id="LOCAL-00035" summary="create smooth trajectory and display it on the mini map">
+      <option name="closed" value="true" />
+      <created>1787805790133</created>
+      <option name="number" value="00035" />
+      <option name="presentableId" value="LOCAL-00035" />
+      <option name="project" value="LOCAL" />
+      <updated>1787805790133</updated>
+    </task>
+    <task id="LOCAL-00036" summary="add trajectory on scene">
+      <option name="closed" value="true" />
+      <created>1787806499954</created>
+      <option name="number" value="00036" />
+      <option name="presentableId" value="LOCAL-00036" />
+      <option name="project" value="LOCAL" />
+      <updated>1787806499954</updated>
+    </task>
+    <option name="localTasksCounter" value="37" />
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="draw a circle rather than square" />
+    <MESSAGE value="add opacity" />
+    <MESSAGE value="clean up" />
+    <MESSAGE value="add scale to splat" />
+    <MESSAGE value="change splat to different size each dimension" />
+    <MESSAGE value="change to xy ellipse" />
+    <MESSAGE value="add quaternion" />
+    <MESSAGE value="add quaternion conversion" />
+    <MESSAGE value="Gaussian covariance is expressed in camera coordinates." />
+    <MESSAGE value="projection Jacobian" />
+    <MESSAGE value="covariance_screen now describes the Gaussian’s variance, aspect ratio, and orientation on the screen." />
+    <MESSAGE value="ellipse eigen vector" />
+    <MESSAGE value="  - Diagonally oriented ellipses&#10;  - Quaternion-dependent orientation&#10;  - Contributions from all three trained scales&#10;  - Perspective-dependent size&#10;  - Ellipse orientation that changes while rotating the model" />
+    <MESSAGE value="isotropic low-pass variance" />
+    <MESSAGE value="sort splat by depth" />
+    <MESSAGE value="reject behind camera splat" />
+    <MESSAGE value="screen-frustum culling" />
+    <MESSAGE value="sh coefficients" />
+    <MESSAGE value="  - Added raw sh_dc values to each GPU splat instance.&#10;  - Added vertex attribute location 6 for SH DC.&#10;  - Passed metadata.has_sh_dc into the renderer.&#10;  - Evaluated degree-zero SH in the vertex shader:" />
+    <MESSAGE value="degree-1 view-dependent spherical-harmonic color" />
+    <MESSAGE value="optimize gs splat loading and gl performance for better rotate" />
+    <MESSAGE value="optimize gs splat loading&#10;add small outline map" />
+    <MESSAGE value="load optimized camera pose" />
+    <MESSAGE value="create smooth trajectory and display it on the mini map" />
+    <MESSAGE value="add trajectory on scene" />
+    <option name="LAST_COMMIT_MESSAGE" value="add trajectory on scene" />
+  </component>
+</project>

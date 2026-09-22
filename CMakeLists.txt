@@ -26,6 +26,12 @@ find_package(yaml-cpp REQUIRED)
 find_package(Threads REQUIRED)
 find_package(Python3 COMPONENTS Interpreter)
 
+option(LIO_VISUAL_BA_ENABLE_QT_VIEWER "Build the optional Qt/OpenGL viewer" OFF)
+if(LIO_VISUAL_BA_ENABLE_QT_VIEWER)
+    find_package(TBB REQUIRED)
+    find_package(Qt5 5.12 REQUIRED COMPONENTS Core Gui Widgets OpenGL Concurrent)
+endif()
+
 # Every production target links this interface target to receive one consistent
 # language and platform configuration.
 add_library(lio_visual_ba_project_options INTERFACE)
@@ -156,6 +162,65 @@ target_link_libraries(
         lio_visual_ba::core
         lio_visual_ba::project_warnings
 )
+
+if(LIO_VISUAL_BA_ENABLE_QT_VIEWER)
+    set(CMAKE_AUTOMOC ON)
+    set(CMAKE_AUTOUIC ON)
+    set(CMAKE_AUTORCC ON)
+
+    add_executable(
+        lio_visual_ba_qt_viewer
+        src/app/main.cpp
+        src/app/MainWindow.cpp
+        src/app/MainWindow.h
+        src/app/ViewerController.cpp
+        src/app/ViewerController.h
+        src/app/viewer_controller/ViewerControllerSemantic.cpp
+        src/app/viewer_controller/ViewerControllerNavigation.cpp
+        src/app/viewer_controller/ViewerControllerIo.cpp
+        src/app/viewer_controller/ViewerControllerPathEditing.cpp
+        src/app/viewer_controller/ViewerControllerInput.cpp
+        src/app/viewer_controller/ViewerControllerInternals.h
+        src/app/RobotPathPlayer.cpp
+        src/app/RobotPathPlayer.h
+        src/app/SemanticObject.h
+        src/renderer/OpenGLWidget.cpp
+        src/renderer/OpenGLWidget.h
+        src/renderer/OrientationGizmo.cpp
+        src/renderer/OrientationGizmo.h
+        src/processing/3dgsProcessing.cpp
+        src/processing/3dgsProcessing.h
+        src/processing/TrajectoryProcessing.cpp
+        include/TrajectoryProcessing.h
+        src/processing/NavigationIntentParser.cpp
+        include/NavigationIntentParser.h
+    )
+    target_include_directories(
+        lio_visual_ba_qt_viewer
+        PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/app
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/renderer
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/processing
+            ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(
+        lio_visual_ba_qt_viewer
+        PRIVATE
+            lio_visual_ba::core
+            lio_visual_ba::project_warnings
+            Threads::Threads
+            TBB::tbb
+            Qt5::Core
+            Qt5::Gui
+            Qt5::Widgets
+            Qt5::OpenGL
+            Qt5::Concurrent
+    )
+    target_compile_definitions(
+        lio_visual_ba_qt_viewer
+        PRIVATE PROJECT_ROOT_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+endif()
 
 if(BUILD_TESTING)
     add_executable(
